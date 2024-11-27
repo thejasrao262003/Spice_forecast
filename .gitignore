@@ -1,0 +1,10 @@
+# Ignore all CSV files
+*.csv
+
+# Ignore files larger than 100MB (via Git LFS if you want, GitHub's hard limit)
+*.largefile
+
+# Ignore specific folders
+Data/
+temp/
+logs/

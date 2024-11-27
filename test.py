@@ -1,45 +1,47 @@
 import pandas as pd
-import os
-import matplotlib.pyplot as plt
 
-# Load the CSV file and select relevant columns
-df = pd.read_csv('Data/White_Variety.csv')
-df = df[["Price Date", "Min Price (Rs./Quintal)", "Max Price (Rs./Quintal)", "Modal Price (Rs./Quintal)"]]
+# Read the file
+df = pd.read_csv("Data/White_Variety.csv")
+print("Initial Data:\n", df.head())
 
-# Convert 'Price Date' to datetime
-df['Price Date'] = pd.to_datetime(df['Price Date'])
+# Remove unnecessary columns
+df = df.drop(columns=['Variety', 'Grade'])
 
-# Group by 'Price Date' and calculate the mean prices for each date
-grouped_data = df.groupby("Price Date")
-average_prices = grouped_data.mean()
+# Reorder columns so that 'Price Date' comes first
+cols = ['Price Date'] + [col for col in df.columns if col != 'Price Date']
+df = df[cols]
 
-# 'Price Date' is now the index, so we don’t need to set it again
-# Create the output directory if it does not exist
-output_directory = 'Daily_Graphs'
-os.makedirs(output_directory, exist_ok=True)
+# Convert 'Price Date' to datetime format
+df['Price Date'] = pd.to_datetime(df['Price Date'], errors='coerce')
 
-# Define the columns we want to plot
-price_columns = {
-    'Max Price (Rs./Quintal)': 'Daily Max Price',
-    'Min Price (Rs./Quintal)': 'Daily Min Price',
-    'Modal Price (Rs./Quintal)': 'Daily Modal Price'
-}
+# Step 1: Detect and remove outliers using the IQR method
+q1 = df['Modal Price (Rs./Quintal)'].quantile(0.25)
+q3 = df['Modal Price (Rs./Quintal)'].quantile(0.75)
+iqr = q3 - q1
+lower_bound = q1 - 1.5 * iqr
+upper_bound = q3 + 1.5 * iqr
 
-# Plot each price column as a separate plot
-for column, title in price_columns.items():
-    plt.figure(figsize=(12, 6))
-    plt.plot(average_prices.index, average_prices[column], marker='o', linestyle='-', color='b')
+# Filter out rows with outliers in 'Modal Price (Rs./Quintal)'
+df = df[(df['Modal Price (Rs./Quintal)'] >= lower_bound) & (df['Modal Price (Rs./Quintal)'] <= upper_bound)]
+print("Data after outlier removal:\n", df.head())
 
-    # Add title and labels
-    plt.title(f'{title} Over Time')
-    plt.xlabel('Date')
-    plt.ylabel(column)
-    plt.xticks(rotation=45)
-    plt.grid()
-    plt.tight_layout()
+# Step 2: Aggregate by 'Price Date' to ensure unique dates
+df = df.groupby('Price Date').mean().reset_index()
 
-    # Save the plot in the specified directory
-    plt.savefig(os.path.join(output_directory, f'{title.replace(" ", "_").lower()}.png'))
-    plt.close()  # Close the figure to free memory
+# Step 3: Reindex to fill in missing dates
+df = df.set_index('Price Date')  # Set 'Price Date' as index
+date_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq='D')  # Full date range
+df = df.reindex(date_range)  # Reindex the DataFrame to include all dates
+df.index.name = 'Price Date'  # Rename the index to 'Price Date'
 
-print(f"Daily time plots saved in directory: {output_directory}")
+# Impute missing values for 'Modal Price (Rs./Quintal)' with the previous day's value
+df['Modal Price (Rs./Quintal)'] = df['Modal Price (Rs./Quintal)'].ffill()
+
+# Reset the index after handling missing dates
+df.reset_index(inplace=True)
+
+# Display the data after handling missing dates
+print("Data after filling missing dates:\n", df.head())
+
+# Optionally, save the final data to a new file
+df.to_csv("Data/aggregated_spice_price_data_2019_2024.csv", index=False)

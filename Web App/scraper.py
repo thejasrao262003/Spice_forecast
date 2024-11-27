@@ -20,12 +20,11 @@ try:
     URL = "https://agmarknet.gov.in/"
     driver.get(URL)
     # Loop through years
-    for year in range(2024, 2025):
+    for state in ["Karnataka", "Madhya Pradesh", "Uttar Pradesh", "Telangana", "Gujarat"]:
         time.sleep(8)
-        from_date = f"31-Oct-2019"
-        to_date = f"21-Nov-2024"
+        from_date = f"26-Nov-2019"
+        to_date = f"26-Nov-2024"
 
-        # Retry logic for dropdown interactions
         def select_dropdown(select_name, option_text):
             while True:
                 try:
@@ -38,9 +37,9 @@ try:
 
         # Select "Both" in arrival price dropdown
         select_dropdown("ddlArrivalPrice", "Both")
-        dropdown2 = driver.find_element(By.ID, "ddlMarket")
+        dropdown2 = driver.find_element(By.ID, "ddlState")
         select = Select(dropdown2)
-        select.select_by_visible_text("Gondal")
+        select.select_by_visible_text(state)
         time.sleep(1)
         # Select the commodity
         select_dropdown("ddlCommodity", "Sesamum(Sesame,Gingelly,Til)")
@@ -75,11 +74,11 @@ try:
 
             # Save data to a CSV file
             df = pd.DataFrame(rows, columns=headers)
-            file_name = f"Gondal/Data_new_1.csv"
+            file_name = f"Data/{state}.csv"
             df.to_csv(file_name, index=False)
-            print(f"Data for {year} saved to {file_name}")
+            print(f"Data saved to {file_name}")
         else:
-            print(f"No data found for the year {year}")
+            print(f"No data found")
         driver.get(URL)
         time.sleep(5)
 
