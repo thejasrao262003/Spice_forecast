@@ -1,6 +1,8 @@
 import pandas as pd
 
 def process_state_data(state):
+    import pandas as pd  # Ensure you import pandas
+
     # Read the CSV file for the given state
     df = pd.read_csv(f'Data/{state}.csv')
 
@@ -11,19 +13,21 @@ def process_state_data(state):
     df['Reported Date'] = pd.to_datetime(df['Reported Date'], format='%d %b %Y', errors='coerce')
 
     # Select relevant columns and ensure they are in the right data type
-    df = df[['Reported Date', 'Arrivals (Tonnes)', 'Modal Price (Rs./Quintal)', 'Variety']]
+    df = df[['Reported Date', 'Market Name', 'Arrivals (Tonnes)', 'Modal Price (Rs./Quintal)', 'Variety']]
     df['Arrivals (Tonnes)'] = pd.to_numeric(df['Arrivals (Tonnes)'], errors='coerce')
     df['Modal Price (Rs./Quintal)'] = pd.to_numeric(df['Modal Price (Rs./Quintal)'], errors='coerce')
-
-    # Sort the DataFrame by 'Reported Date'
     df = df.sort_values(by='Reported Date')
 
-    # Group the data by 'Reported Date' and aggregate the necessary columns
+    # Save the DataFrame before grouping to a CSV file
+    df.to_csv(f'Data/{state}_processed.csv', index=False)  # Updated filename
+
+    # Group by 'Reported Date' and aggregate
     grouped = df.groupby('Reported Date').agg(
         {'Arrivals (Tonnes)': 'sum',
          'Modal Price (Rs./Quintal)': 'mean'}).reset_index()
 
     return grouped
+
 
 def check_and_impute(state):
     # Read the processed CSV for the state

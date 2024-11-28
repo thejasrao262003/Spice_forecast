@@ -123,3 +123,43 @@ Missing Dates: 0
 Missing Values (Arrivals): 0
 Missing Values (Modal Price): 0
 
+State: Karnataka
+Start Date: 2019-11-27 00:00:00
+End Date: 2024-11-19 00:00:00
+Total Days: 1820
+Missing Dates: 0
+Missing Values (Arrivals): 0
+Missing Values (Modal Price): 0
+
+State: Uttar Pradesh
+Start Date: 2019-11-26 00:00:00
+End Date: 2024-11-26 00:00:00
+Total Days: 1828
+Missing Dates: 0
+Missing Values (Arrivals): 0
+Missing Values (Modal Price): 0
+
+State: Madhya Pradesh
+Start Date: 2019-11-26 00:00:00
+End Date: 2024-11-26 00:00:00
+Total Days: 1828
+Missing Dates: 0
+Missing Values (Arrivals): 0
+Missing Values (Modal Price): 0
+
+State: Telangana
+Start Date: 2022-01-03 00:00:00
+End Date: 2024-10-18 00:00:00
+Total Days: 1020
+Missing Dates: 0
+Missing Values (Arrivals): 0
+Missing Values (Modal Price): 0
+
+State: Gujarat
+Start Date: 2019-11-26 00:00:00
+End Date: 2024-11-26 00:00:00
+Total Days: 1828
+Missing Dates: 0
+Missing Values (Arrivals): 0
+Missing Values (Modal Price): 0
+

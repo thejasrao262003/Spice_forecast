@@ -1,195 +1,278 @@
 import streamlit as st
 import plotly.graph_objects as go
-import requests
+from pymongo import MongoClient
+from dotenv import load_dotenv
+from datetime import datetime, timedelta
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
+import certifi
+import os
+import json
 
-st.title("AgriPredict")
+# Load environment variables
+load_dotenv()
+
+# MongoDB connection
+mongo_uri = os.getenv("MONGO_URI")
+if not mongo_uri:
+    st.error("MongoDB URI is not set!")
+    st.stop()
+else:
+    # Connect to MongoDB with SSL certificate validation
+    client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
+    db = client["AgriPredict"]
+    collection = db["WhiteSesame"]
+
+# CSS to increase the width of the container
 st.markdown("""
     <style>
+        /* Adjust the width of the main container */
+        .main {
+            max-width: 1200px;  /* Increase the width */
+            margin: 0 auto;  /* Center the container */
+        }
+
+        /* Main background */
+        body {
+            background-color: #f9f9f9;
+        }
+
+        /* Title styling */
+        h1 {
+            color: #4CAF50;
+            font-family: 'Arial Black', sans-serif;
+        }
+
+        /* Buttons */
         .stButton>button {
             background-color: #4CAF50;
             color: white;
-            padding: 8px 16px;
             font-size: 14px;
-            margin: 4px;
-            border: none;
             border-radius: 8px;
+            padding: 10px 20px;
+            margin: 5px;
+            white-space: nowrap;
         }
         .stButton>button:hover {
             background-color: #45a049;
         }
+
+        /* Selectbox styling */
         .stSelectbox>div {
             padding: 10px;
-            background-color: #f4f4f9;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        .stTitle {
-            font-size: 32px;
-            font-weight: bold;
-            color: #333;
-        }
-        .stSubheader {
-            font-size: 18px;
-            font-weight: 500;
-            color: #333;
-        }
-        .stContainer {
-            margin-bottom: 20px;
-        }
-        .stBox {
             background-color: #ffffff;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin-top: 30px;
+            border: 1px solid #e6e6e6;
+            border-radius: 8px;
         }
-        .css-1s2u09g {
-            width: 300px;
+
+        /* Checkbox styling */
+        .stCheckbox>label {
+            font-size: 14px;
+            color: #555;
+        }
+
+        /* Containers */
+        .stContainer {
+            border-radius: 12px;
+            padding: 20px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Chart area */
+        .plotly-graph-div {
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Footer */
+        footer {
+            font-size: 12px;
+            text-align: center;
+            color: #888;
+            padding: 10px;
         }
     </style>
 """, unsafe_allow_html=True)
 
+st.title("🌾 AgriPredict Dashboard")
+
+# Load the state-market dictionary from the JSON file
+with open('all_state_market_dict.json', 'r') as file:
+    state_market_dict = json.load(file)
+
+# UI for Dashboard
 with st.container():
     with st.expander("AgriPredict Dashboard", expanded=True):
-        col1, col2, col3, col4, col5, col6, col7 = st.columns([1, 1, 1, 1, 1, 2, 2])
+        # Adjust the columns to fit more elements within the container
+        col1, col2, col3, col4, col5, col6, col7 = st.columns([1.5, 1.5, 1.5, 1.5, 1.5, 3, 3])
 
         # Buttons for periods
         with col1:
             if st.button('2W', key='2_weeks'):
-                st.session_state.selected_period = '2 Weeks'
+                st.session_state.selected_period = 14
 
         with col2:
             if st.button('1M', key='1_month'):
-                st.session_state.selected_period = '1 Month'
+                st.session_state.selected_period = 30
 
         with col3:
             if st.button('3M', key='3_months'):
-                st.session_state.selected_period = '3 Months'
+                st.session_state.selected_period = 90
 
         with col4:
             if st.button('1Y', key='1_year'):
-                st.session_state.selected_period = '1 Year'
+                st.session_state.selected_period = 365
 
         with col5:
             if st.button('5Y', key='5_year'):
-                st.session_state.selected_period = '5 Year'
+                st.session_state.selected_period = 1825
 
-        # State dropdown in the 6th column
+        # Dropdown for states
         with col6:
-            states = ["Karnataka", "Uttar Pradesh", "Madhya Pradesh", "Telangana", "Gujarat"]
-            selected_state = st.selectbox("Choose a state", states, key="state_selectbox", index=0, help="Select a state for trend analysis.")
+            states = list(state_market_dict.keys())
+            selected_state = st.selectbox(
+                "Choose a state",
+                states,
+                key="state_selectbox",
+                index=0
+            )
 
         # Dropdown for selecting between Price, Volume, or Both
         with col7:
-            data_type = st.selectbox("Select Data Type", ["Price", "Volume", "Both"], help="Choose the data type you want to analyze.")
+            data_type = st.selectbox(
+                "Select Data Type",
+                ["Price", "Volume", "Both"]
+            )
 
-        st.subheader("Trend Graph")
+        # Checkbox for market-wise analysis
+        st.write("")
+        with st.container():
+            market_wise = st.checkbox("Market wise", key="market_checkbox")
 
+        if market_wise:
+            # Get markets for the selected state
+            markets = state_market_dict.get(selected_state, [])
+            selected_market = st.selectbox(
+                "Choose a market",
+                markets,
+                key="market_selectbox",
+                index=0
+            )
+            query_filter = {"state": selected_state, "Market Name": selected_market}
+        else:
+            query_filter = {"state": selected_state}
+
+        # Add date filtering based on selected period
         if 'selected_period' in st.session_state:
-            period = st.session_state.selected_period
-            st.write(f"Displaying trend for {selected_state} over {period}.")
-            url = f"http://localhost:5000/get_data?state={selected_state}&period={period}"
+            days_period = st.session_state.selected_period
+            query_filter["Reported Date"] = {
+                "$gte": datetime.now() - timedelta(days=days_period)
+            }
 
-            try:
-                response = requests.get(url)
-                response.raise_for_status()
-                data = response.json()
+        # Fetch data from MongoDB
+        try:
+            cursor = collection.find(query_filter)
+            data = list(cursor)
+
+            if data:
+                # Convert MongoDB data to a DataFrame
                 df = pd.DataFrame(data)
+                df['Reported Date'] = pd.to_datetime(df['Reported Date'])
 
-                # Ensure the 'Reported Date' column is in datetime format and extract the date part only
-                df['Reported Date'] = pd.to_datetime(df['Reported Date'], errors='coerce').dt.date
+                # Group by Reported Date
+                df_grouped = (
+                    df.groupby('Reported Date', as_index=False)
+                    .agg({
+                        'Arrivals (Tonnes)': 'sum',
+                        'Modal Price (Rs./Quintal)': 'mean'
+                    })
+                )
 
-                if data_type == "Price" and 'Modal Price (Rs./Quintal)' in df.columns:
+                # Create a complete date range
+                date_range = pd.date_range(
+                    start=df_grouped['Reported Date'].min(),
+                    end=df_grouped['Reported Date'].max()
+                )
+                df_grouped = df_grouped.set_index('Reported Date').reindex(date_range).rename_axis('Reported Date').reset_index()
+
+                # Fill missing values
+                df_grouped['Arrivals (Tonnes)'] = df_grouped['Arrivals (Tonnes)'].fillna(
+                    method='ffill').fillna(method='bfill')
+                df_grouped['Modal Price (Rs./Quintal)'] = df_grouped['Modal Price (Rs./Quintal)'].fillna(
+                    method='ffill').fillna(method='bfill')
+
+                st.subheader(f"📈 Trend Graph for {selected_state} ({'Market: ' + selected_market if market_wise else 'State'})")
+
+                if data_type == "Both":
+                    # Min-Max Scaling
+                    scaler = MinMaxScaler()
+                    df_grouped[['Scaled Price', 'Scaled Arrivals']] = scaler.fit_transform(
+                        df_grouped[['Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']]
+                    )
+
+                    fig = go.Figure()
+
+                    # Plot Scaled Price with actual values on hover
+                    fig.add_trace(go.Scatter(
+                        x=df_grouped['Reported Date'],
+                        y=df_grouped['Scaled Price'],
+                        mode='lines',
+                        name='Scaled Price',
+                        line=dict(width=1, color='green'),
+                        text=df_grouped['Modal Price (Rs./Quintal)'],  # Actual Modal Price values
+                        hovertemplate='Date: %{x}<br>Scaled Price: %{y:.2f}<br>Actual Price: %{text:.2f}<extra></extra>'
+                    ))
+
+                    # Plot Scaled Arrivals with actual values on hover
+                    fig.add_trace(go.Scatter(
+                        x=df_grouped['Reported Date'],
+                        y=df_grouped['Scaled Arrivals'],
+                        mode='lines',
+                        name='Scaled Arrivals',
+                        line=dict(width=1, color='blue'),
+                        text=df_grouped['Arrivals (Tonnes)'],  # Actual Arrivals values
+                        hovertemplate='Date: %{x}<br>Scaled Arrivals: %{y:.2f}<br>Actual Arrivals: %{text:.2f}<extra></extra>'
+                    ))
+
+                    fig.update_layout(
+                        title="Price and Arrivals Trend",
+                        xaxis_title='Date',
+                        yaxis_title='Scaled Values',
+                        template='plotly_white'
+                    )
+                    st.plotly_chart(fig)
+
+                elif data_type == "Price":
                     # Plot Modal Price
                     fig = go.Figure()
-
                     fig.add_trace(go.Scatter(
-                        x=df['Reported Date'],
-                        y=df['Modal Price (Rs./Quintal)'],
+                        x=df_grouped['Reported Date'],
+                        y=df_grouped['Modal Price (Rs./Quintal)'],
                         mode='lines',
-                        name=f'{selected_state} - {period} Modal Price',
-                        text=df['Modal Price (Rs./Quintal)'],
-                        hoverinfo='text+x+y',
-                        line=dict(width=1)
+                        name='Modal Price',
+                        line=dict(width=1, color='green')
                     ))
-
-                    fig.update_layout(
-                        title=f"{selected_state} - {period} Modal Price Trend",
-                        xaxis_title='Date',
-                        yaxis_title='Modal Price',
-                        hovermode='closest'
-                    )
-
+                    fig.update_layout(title="Modal Price Trend", xaxis_title='Date', yaxis_title='Price', template='plotly_white')
                     st.plotly_chart(fig)
 
-                elif data_type == "Volume" and 'Arrivals (Tonnes)' in df.columns:
+                elif data_type == "Volume":
                     # Plot Arrivals (Tonnes)
                     fig = go.Figure()
-
                     fig.add_trace(go.Scatter(
-                        x=df['Reported Date'],
-                        y=df['Arrivals (Tonnes)'],
+                        x=df_grouped['Reported Date'],
+                        y=df_grouped['Arrivals (Tonnes)'],
                         mode='lines',
-                        name=f'{selected_state} - {period} Arrivals (Tonnes)',
-                        text=df['Arrivals (Tonnes)'],
-                        hoverinfo='text+x+y',
-                        line=dict(width=1)
+                        name='Arrivals',
+                        line=dict(width=1, color='blue')
                     ))
-
-                    fig.update_layout(
-                        title=f"{selected_state} - {period} Arrivals (Tonnes) Trend",
-                        xaxis_title='Date',
-                        yaxis_title='Arrivals (Tonnes)',
-                        hovermode='closest'
-                    )
-
+                    fig.update_layout(title="Arrivals Trend", xaxis_title='Date', yaxis_title='Volume', template='plotly_white')
                     st.plotly_chart(fig)
 
-                elif data_type == "Both":
-                    if 'Modal Price (Rs./Quintal)' in df.columns and 'Arrivals (Tonnes)' in df.columns:
-                        # Min-Max Scaling for both columns
-                        scaler = MinMaxScaler()
-                        scaled_values = scaler.fit_transform(df[['Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']])
-                        df['Scaled Price'] = scaled_values[:, 0]
-                        df['Scaled Arrivals'] = scaled_values[:, 1]
-
-                        # Plot both scaled values on the same graph
-                        fig = go.Figure()
-
-                        fig.add_trace(go.Scatter(
-                            x=df['Reported Date'],
-                            y=df['Scaled Price'],
-                            mode='lines',
-                            name=f'{selected_state} - {period} Scaled Modal Price',
-                            text=df['Modal Price (Rs./Quintal)'],
-                            hoverinfo='text+x+y',
-                            line=dict(width=1, color='blue')
-                        ))
-
-                        fig.add_trace(go.Scatter(
-                            x=df['Reported Date'],
-                            y=df['Scaled Arrivals'],
-                            mode='lines',
-                            name=f'{selected_state} - {period} Scaled Arrivals',
-                            text=df['Arrivals (Tonnes)'],
-                            hoverinfo='text+x+y',
-                            line=dict(width=1, color='green')
-                        ))
-
-                        fig.update_layout(
-                            title=f"{selected_state} - {period} Scaled Modal Price and Arrivals Trend",
-                            xaxis_title='Date',
-                            yaxis_title='Scaled Values (0 to 1)',
-                            hovermode='closest',
-                            legend=dict(x=0, y=1, traceorder='normal'),
-                        )
-
-                        st.plotly_chart(fig)
-
                 else:
-                    st.write("Selected column(s) not found in the data.")
+                    st.warning("⚠️ No relevant data found for the selected options.")
+            else:
+                st.warning("⚠️ No data found for the selected filters.")
 
-            except requests.exceptions.RequestException as e:
-                st.error(f"Error fetching data from Flask: {e}")
+        except Exception as e:
+            st.error(f"❌ Error fetching data: {e}")
