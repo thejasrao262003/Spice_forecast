@@ -1,0 +1,6 @@
+streamlit
+pymongo
+certifi
+pandas
+plotly
+scikit-learn
