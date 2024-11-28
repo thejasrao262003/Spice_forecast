@@ -10,6 +10,124 @@ import os
 
 mongo_uri = st.secrets["MONGO_URI"]
 
+state_market_dict = {
+    "Karnataka": [
+        "Kalburgi",
+        "Basava Kalayana",
+        "Lingasugur",
+        "Kustagi",
+        "Bangalore",
+        "Bagalakot",
+        "Hubli (Amaragol)"
+    ],
+    "Gujarat": [
+        "Siddhpur",
+        "Jasdan",
+        "Gondal",
+        "Morbi",
+        "Botad",
+        "Visavadar",
+        "Dahod",
+        "Rajkot",
+        "Junagadh",
+        "Savarkundla",
+        "Bhavnagar",
+        "Rajula",
+        "Dhoraji",
+        "Amreli",
+        "Mahuva(Station Road)",
+        "Mansa",
+        "Porbandar",
+        "Dasada Patadi",
+        "Halvad",
+        "Chotila",
+        "Bhanvad",
+        "Dhansura",
+        "Babra",
+        "Upleta",
+        "Palitana",
+        "Jetpur(Dist.Rajkot)",
+        "S.Mandvi",
+        "Mandvi",
+        "Khambha",
+        "Kadi",
+        "Taleja",
+        "Himatnagar",
+        "Lakhani",
+        "Rapar",
+        "Una",
+        "Dhari",
+        "Bagasara",
+        "Jam Jodhpur",
+        "Veraval",
+        "Dhragradhra",
+        "Deesa"
+    ],
+    "Uttar Pradesh": [
+        "Bangarmau",
+        "Sultanpur",
+        "Maudaha",
+        "Mauranipur",
+        "Lalitpur",
+        "Konch",
+        "Muskara",
+        "Raath",
+        "Varipaal",
+        "Auraiya",
+        "Orai",
+        "Banda",
+        "Kishunpur",
+        "Ait",
+        "Jhansi",
+        "Kurara",
+        "Chirgaon",
+        "Charkhari",
+        "Moth",
+        "Jalaun",
+        "Sirsaganj",
+        "Shikohabad"
+    ],
+    "Madhya Pradesh": [
+        "Naugaon",
+        "Mehar",
+        "Kailaras",
+        "Datia",
+        "LavKush Nagar(Laundi)",
+        "Ajaygarh",
+        "Rajnagar",
+        "Sevda",
+        "Neemuch",
+        "Sheopurkalan",
+        "Lashkar",
+        "Alampur",
+        "Niwadi",
+        "Dabra",
+        "Ujjain",
+        "Bijawar",
+        "Sidhi",
+        "Barad",
+        "Pohari",
+        "Shahagarh",
+        "Lateri",
+        "Banapura",
+        "Panna",
+        "Garhakota",
+        "Katni",
+        "Chhatarpur",
+        "Beohari",
+        "Satna",
+        "Sabalgarh",
+        "Hanumana",
+        "Bhander",
+        "Banmorkalan",
+        "Jaora",
+        "Bagli",
+        "Singroli"
+    ],
+    "Telangana": [
+        "Warangal"
+    ]
+}
 if not mongo_uri:
     st.error("MongoDB URI is not set!")
     st.stop()
@@ -92,11 +210,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🌾 AgriPredict Dashboard")
-
-# Load the state-market dictionary from the JSON file
-with open('all_state_market_dict.json', 'r') as file:
-    state_market_dict = json.load(file)
-
 # UI for Dashboard
 with st.container():
     with st.expander("AgriPredict Dashboard", expanded=True):
