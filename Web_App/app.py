@@ -1,19 +1,15 @@
 import streamlit as st
 import plotly.graph_objects as go
 from pymongo import MongoClient
-from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import certifi
-import os
 import json
+import os
 
-# Load environment variables
-load_dotenv()
+mongo_uri = st.secrets["MONGO_URI"]
 
-# MongoDB connection
-mongo_uri = os.getenv("MONGO_URI")
 if not mongo_uri:
     st.error("MongoDB URI is not set!")
     st.stop()
