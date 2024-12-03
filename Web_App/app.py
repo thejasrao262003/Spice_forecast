@@ -508,12 +508,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🌾 AgriPredict Dashboard")
-
-# Top-level radio buttons for switching views
 view_mode = st.radio("Select View", ["Plots", "Predictions"], horizontal=True)
 
 if view_mode == "Plots":
-    # Sidebar for navigation and filtering
     st.sidebar.header("Filters")
     selected_period = st.sidebar.selectbox(
         "Select Time Period",
