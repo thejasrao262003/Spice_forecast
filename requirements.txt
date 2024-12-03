@@ -5,3 +5,4 @@ pymongo
 scikit-learn
 xgboost
 plotly
+certifi
