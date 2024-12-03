@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import os
 import time
 import json
-
+import certifi
 mongo_uri = st.secrets["MONGO_URI"]
 
 state_market_dict = {
