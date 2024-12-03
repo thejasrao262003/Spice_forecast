@@ -12,6 +12,8 @@ import os
 import time
 import json
 import certifi
+from joblib import Parallel, delayed
+
 mongo_uri = st.secrets["MONGO_URI"]
 
 state_market_dict = {
@@ -235,16 +237,41 @@ def preprocess_data(df):
 
     return df
 
-def train_and_evaluate(df):
-    import streamlit as st
+@st.cache_data
+def create_forecasting_features(df):
+    # Add forecasting features (this is an example; adapt as needed)
+    return df
 
+@st.cache_data
+def create_forecasting_features(df):
+    # Add forecasting features (this is an example; adapt as needed)
+    return df
+
+@st.cache_data
+def tune_hyperparameters(X_train, y_train, X_test, y_test, param_grid):
+    best_score = float('-inf')
+    best_params = None
+    param_combinations = list(ParameterGrid(param_grid))
+
+    def train_model(params):
+        model = XGBRegressor(**params)
+        model.fit(X_train, y_train)
+        score = model.score(X_test, y_test)
+        return score, params
+
+    # Parallelize hyperparameter tuning
+    results = Parallel(n_jobs=-1)(delayed(train_model)(params) for params in param_combinations)
+
+    for score, params in results:
+        if score > best_score:
+            best_score = score
+            best_params = params
+
+    return best_params
+
+def train_and_evaluate(df):
     # Add progress bar for hyperparameter tuning
     progress_bar = st.progress(0)
-
-    # Helper function to update progress during hyperparameter tuning
-    def update_tuning_progress(current, total):
-        progress = int((current / total) * 100)
-        progress_bar.progress(progress)
 
     df = create_forecasting_features(df)
 
@@ -252,9 +279,9 @@ def train_and_evaluate(df):
     train_df = df[df['Reported Date'] < '2024-01-01']
     test_df = df[df['Reported Date'] >= '2024-01-01']
 
-    X_train = train_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'])
+    X_train = train_df.drop(columns=['Modal Price (Rs./Quintal', 'Reported Date'])
     y_train = train_df['Modal Price (Rs./Quintal)']
-    X_test = test_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'])
+    X_test = test_df.drop(columns=['Modal Price (Rs./Quintal', 'Reported Date'])
     y_test = test_df['Modal Price (Rs./Quintal)']
 
     # Hyperparameter tuning
@@ -266,44 +293,9 @@ def train_and_evaluate(df):
         'booster': ['gbtree', 'dart']
     }
 
-    model = XGBRegressor()
-    param_combinations = len(param_grid['learning_rate']) * len(param_grid['max_depth']) * \
-                         len(param_grid['n_estimators']) * len(param_grid['booster'])
+    best_params = tune_hyperparameters(X_train, y_train, X_test, y_test, param_grid)
 
-    current_combination = 0  # Counter for combinations
-
-    def custom_grid_search():
-        nonlocal current_combination
-        best_score = float('-inf')
-        best_params = None
-        for learning_rate in param_grid['learning_rate']:
-            for max_depth in param_grid['max_depth']:
-                for n_estimators in param_grid['n_estimators']:
-                    for booster in param_grid['booster']:
-                        model.set_params(
-                            learning_rate=learning_rate,
-                            max_depth=max_depth,
-                            n_estimators=n_estimators,
-                            booster=booster
-                        )
-                        model.fit(X_train, y_train)
-                        score = model.score(X_test, y_test)
-                        if score > best_score:
-                            best_score = score
-                            best_params = {
-                                'learning_rate': learning_rate,
-                                'max_depth': max_depth,
-                                'n_estimators': n_estimators,
-                                'booster': booster
-                            }
-                        # Update progress bar
-                        current_combination += 1
-                        update_tuning_progress(current_combination, param_combinations)
-        return best_params
-
-    best_params = custom_grid_search()
-
-    # Train the best model with the identified parameters
+    # Train the best model
     st.write("Training the best model and making predictions...")
     best_model = XGBRegressor(**best_params)
     best_model.fit(X_train, y_train)
@@ -352,7 +344,6 @@ def train_and_evaluate(df):
 
     # Return best parameters
     return best_params
-
 
 
 def forecast_next_14_days(df, best_params):
