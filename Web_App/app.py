@@ -652,7 +652,7 @@ if view_mode == "Plots":
     except Exception as e:
         st.error(f"❌ Error fetching data: {e}")
 
-elif view_mode == "Model":
+elif view_mode == "Predictions":
     st.subheader("📊 Model Analysis")
     sub_option = st.radio("Select one of the following", ["India", "States", "Market"], horizontal=True)
 
