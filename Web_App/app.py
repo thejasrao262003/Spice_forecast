@@ -369,6 +369,10 @@ def forecast_next_14_days(df, best_params):
 
     # Prepare the dataset for forecasting
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
+    st.write("Shape of X_train:", X_train.shape)
+    st.write("Shape of y_train:", y_train.shape)
+    st.write("First few rows of X_train:", X_train.head())
+    st.write("First few rows of y_train:", y_train.head())
 
     # Step 4: Train the model with the best parameters on the full dataset
     model = XGBRegressor(**best_params)
