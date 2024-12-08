@@ -2,7 +2,12 @@ streamlit
 pandas
 numpy
 pymongo
+python-dotenv
 scikit-learn
 xgboost
 plotly
 certifi
+requests
+beautifulsoup4
+tqdm
+statsmodels
