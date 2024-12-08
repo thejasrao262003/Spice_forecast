@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 from sklearn.preprocessing import MinMaxScaler
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import certifi
@@ -1289,6 +1290,8 @@ else:
     collection = db["WhiteSesame"]
     best_params_collection = db["BestParams"]
     impExp = db["impExp"]
+    users_collection = db["user"]
+
 def get_dataframe_from_collection(collection):
     # Fetch all documents from the collection
     data = list(collection.find())
@@ -1301,6 +1304,12 @@ def get_dataframe_from_collection(collection):
         df = df.drop(columns=["_id"])
 
     return df
+
+def authenticate_user(username, password):
+    user = users_collection.find_one({"username": username})
+    if user and check_password_hash(user['password'], password):
+        return True
+    return False
 # CSS for responsive and professional design
 st.markdown("""
     <style>
@@ -1323,227 +1332,214 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
 
-st.title("🌾 AgriPredict Dashboard")
-if st.button("Get Live Data Feed"):
-    fetch_and_store_data()
-# Top-level radio buttons for switching views
-view_mode = st.radio("Select View", ["Statistics", "Plots", "Predictions"], horizontal=True)
-
-if view_mode == "Plots":
-    st.sidebar.header("Filters")
-    selected_period = st.sidebar.selectbox(
-        "Select Time Period",
-        ["2 Weeks", "1 Month", "3 Months", "1 Year", "5 Years"],
-        index=1
-    )
-
-    # Mapping selected period to days
-    period_mapping = {
-        "2 Weeks": 14,
-        "1 Month": 30,
-        "3 Months": 90,
-        "1 Year": 365,
-        "5 Years": 1825
-    }
-    st.session_state.selected_period = period_mapping[selected_period]
-
-    # Dropdown for state selection
-    selected_state = st.sidebar.selectbox("Select State", list(state_market_dict.keys()))
-
-    # Dropdown for market analysis
-    market_wise = st.sidebar.checkbox("Market Wise Analysis")
-    if market_wise:
-        markets = state_market_dict.get(selected_state, [])
-        selected_market = st.sidebar.selectbox("Select Market", markets)
-        query_filter = {"state": selected_state, "Market Name": selected_market}
-    else:
-        query_filter = {"state": selected_state}
-
-    # Dropdown for data type
-    data_type = st.sidebar.radio(
-        "Select Data Type",
-        ["Price", "Volume", "Both"]
-    )
-
-    # Add date filtering based on selected period
-    query_filter["Reported Date"] = {
-        "$gte": datetime.now() - timedelta(days=st.session_state.selected_period)
-    }
-
-    # Fetch data from MongoDB
-    try:
-        cursor = collection.find(query_filter)
-        data = list(cursor)
-
-        if data:
-            # Convert MongoDB data to a DataFrame
-            df = pd.DataFrame(data)
-            df['Reported Date'] = pd.to_datetime(df['Reported Date'])
-            print("df")
-            # Group by Reported Date
-            df_grouped = (
-                df.groupby('Reported Date', as_index=False)
-                .agg({
-                    'Arrivals (Tonnes)': 'sum',
-                    'Modal Price (Rs./Quintal)': 'mean'
-                })
-            )
-
-            # Create a complete date range
-            date_range = pd.date_range(
-                start=df_grouped['Reported Date'].min(),
-                end=df_grouped['Reported Date'].max()
-            )
-            df_grouped = df_grouped.set_index('Reported Date').reindex(date_range).rename_axis('Reported Date').reset_index()
-
-            # Fill missing values
-            df_grouped['Arrivals (Tonnes)'] = df_grouped['Arrivals (Tonnes)'].fillna(method='ffill').fillna(method='bfill')
-            df_grouped['Modal Price (Rs./Quintal)'] = df_grouped['Modal Price (Rs./Quintal)'].fillna(method='ffill').fillna(method='bfill')
-
-            st.subheader(f"📈 Trends for {selected_state} ({'Market: ' + selected_market if market_wise else 'State'})")
-
-            if data_type == "Both":
-                # Min-Max Scaling
-                scaler = MinMaxScaler()
-                df_grouped[['Scaled Price', 'Scaled Arrivals']] = scaler.fit_transform(
-                    df_grouped[['Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']]
-                )
-
-                fig = go.Figure()
-
-                fig.add_trace(go.Scatter(
-                    x=df_grouped['Reported Date'],
-                    y=df_grouped['Scaled Price'],
-                    mode='lines',
-                    name='Scaled Price',
-                    line=dict(width=1, color='green'),
-                    text=df_grouped['Modal Price (Rs./Quintal)'],
-                    hovertemplate='Date: %{x}<br>Scaled Price: %{y:.2f}<br>Actual Price: %{text:.2f}<extra></extra>'
-                ))
-
-                fig.add_trace(go.Scatter(
-                    x=df_grouped['Reported Date'],
-                    y=df_grouped['Scaled Arrivals'],
-                    mode='lines',
-                    name='Scaled Arrivals',
-                    line=dict(width=1, color='blue'),
-                    text=df_grouped['Arrivals (Tonnes)'],
-                    hovertemplate='Date: %{x}<br>Scaled Arrivals: %{y:.2f}<br>Actual Arrivals: %{text:.2f}<extra></extra>'
-                ))
-
-                fig.update_layout(
-                    title="Price and Arrivals Trend",
-                    xaxis_title='Date',
-                    yaxis_title='Scaled Values',
-                    template='plotly_white'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-            elif data_type == "Price":
-                # Plot Modal Price
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=df_grouped['Reported Date'],
-                    y=df_grouped['Modal Price (Rs./Quintal)'],
-                    mode='lines',
-                    name='Modal Price',
-                    line=dict(width=1, color='green')
-                ))
-                fig.update_layout(title="Modal Price Trend", xaxis_title='Date', yaxis_title='Price', template='plotly_white')
-                st.plotly_chart(fig, use_container_width=True)
-
-            elif data_type == "Volume":
-                # Plot Arrivals (Tonnes)
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=df_grouped['Reported Date'],
-                    y=df_grouped['Arrivals (Tonnes)'],
-                    mode='lines',
-                    name='Arrivals',
-                    line=dict(width=1, color='blue')
-                ))
-                fig.update_layout(title="Arrivals Trend", xaxis_title='Date', yaxis_title='Volume', template='plotly_white')
-                st.plotly_chart(fig, use_container_width=True)
-
+if st.session_state.authenticated:
+    st.title("🌾 AgriPredict Dashboard")
+    if st.button("Get Live Data Feed"):
+        fetch_and_store_data()
+    # Top-level radio buttons for switching views
+    view_mode = st.radio("Select View", ["Statistics", "Plots", "Predictions"], horizontal=True)
+    
+    if view_mode == "Plots":
+        st.sidebar.header("Filters")
+        selected_period = st.sidebar.selectbox(
+            "Select Time Period",
+            ["2 Weeks", "1 Month", "3 Months", "1 Year", "5 Years"],
+            index=1
+        )
+    
+        # Mapping selected period to days
+        period_mapping = {
+            "2 Weeks": 14,
+            "1 Month": 30,
+            "3 Months": 90,
+            "1 Year": 365,
+            "5 Years": 1825
+        }
+        st.session_state.selected_period = period_mapping[selected_period]
+    
+        # Dropdown for state selection
+        selected_state = st.sidebar.selectbox("Select State", list(state_market_dict.keys()))
+    
+        # Dropdown for market analysis
+        market_wise = st.sidebar.checkbox("Market Wise Analysis")
+        if market_wise:
+            markets = state_market_dict.get(selected_state, [])
+            selected_market = st.sidebar.selectbox("Select Market", markets)
+            query_filter = {"state": selected_state, "Market Name": selected_market}
         else:
-            st.warning("⚠️ No data found for the selected filters.")
-
-    except Exception as e:
-        st.error(f"❌ Error fetching data: {e}")
-
-elif view_mode == "Predictions":
-    st.subheader("📊 Model Analysis")
-    sub_option = st.radio("Select one of the following", ["India", "States", "Market"], horizontal=True)
-
-    if sub_option == "States":
-        states = ["Karnataka", "Madhya Pradesh", "Gujarat", "Uttar Pradesh", "Telangana"]
-        selected_state = st.selectbox("Select State for Model Training", states)
-        filter_key = f"state_{selected_state}"  # Unique key for each state
-        #
-        # if st.button("Train and Forecast"):
-        #     query_filter = {"state": selected_state}
-        #     df = fetch_and_process_data(query_filter)
-        #     train_and_forecast(df, filter_key)
-
-        if st.button("Forecast"):
             query_filter = {"state": selected_state}
-            df = fetch_and_process_data(query_filter)
-            forecast(df, filter_key)
-
-    if sub_option == "Market":
-        # Define all market options combined
-        all_markets = ["Rajkot", "Neemuch", "Kalburgi", "Warangal"]
-
-        # Use a single dropdown to select a market
-        selected_market = st.selectbox("Select Market for Model Training", all_markets)
-
-        filter_key = f"market_{selected_market}"  # Unique key for each market
-
-        if st.button("Forecast"):
-            query_filter = {"Market Name": selected_market}
-            df = fetch_and_process_data(query_filter)
-            forecast(df, filter_key)
-    elif sub_option == "India":
-        df = collection_to_dataframe(impExp)
-        # forecast_option = st.sidebar.radio(
-        #     "Select the forecast that you need:",
-        #     ["Import Quantity","Import Price", "Export Quantity", "Export Price", "Modal Price"]
-        # )
-        # if forecast_option == "Import Quantity":
-        #     create_forecasting_features_impExp(df, "QUANTITY_IMPORT")
-        #     if st.button("Train and Forecast"):
-        #         best_params = train_and_evaluate_impExp(df, "QUANTITY_IMPORT")
-        #         forecast_next_14_days_impExp(df, best_params, "QUANTITY_IMPORT")
-        # if forecast_option == "Export Quantity":
-        #     create_forecasting_features_impExp(df, "QUANTITY_EXPORT")
-        #     if st.button("Train and Forecast"):
-        #         best_params = train_and_evaluate_impExp(df, "QUANTITY_EXPORT")
-        #         forecast_next_14_days_impExp(df, best_params, "QUANTITY_EXPORT")
-        # if forecast_option == "Import Price":
-        #     create_forecasting_features_impExp(df, "VALUE_IMPORT")
-        #     if st.button("Train and Forecast"):
-        #         best_params = train_and_evaluate_impExp(df, "VALUE_IMPORT")
-        #         forecast_next_14_days_impExp(df, best_params, "VALUE_IMPORT")
-        # if forecast_option == "Export Price":
-        #     create_forecasting_features_impExp(df, "VALUE_EXPORT")
-        #     if st.button("Train and Forecast"):
-        #         best_params = train_and_evaluate_impExp(df, "VALUE_EXPORT")
-        #         forecast_next_14_days_impExp(df, best_params, "VALUE_EXPORT")
-        if True:
-            # if st.button("Train and Forecast"):
-            #     query_filter = {}
-            #     df = fetch_and_process_data(query_filter)
-            #     train_and_forecast(df, "India")
-
+    
+        # Dropdown for data type
+        data_type = st.sidebar.radio(
+            "Select Data Type",
+            ["Price", "Volume", "Both"]
+        )
+    
+        # Add date filtering based on selected period
+        query_filter["Reported Date"] = {
+            "$gte": datetime.now() - timedelta(days=st.session_state.selected_period)
+        }
+    
+        # Fetch data from MongoDB
+        try:
+            cursor = collection.find(query_filter)
+            data = list(cursor)
+    
+            if data:
+                # Convert MongoDB data to a DataFrame
+                df = pd.DataFrame(data)
+                df['Reported Date'] = pd.to_datetime(df['Reported Date'])
+                print("df")
+                # Group by Reported Date
+                df_grouped = (
+                    df.groupby('Reported Date', as_index=False)
+                    .agg({
+                        'Arrivals (Tonnes)': 'sum',
+                        'Modal Price (Rs./Quintal)': 'mean'
+                    })
+                )
+    
+                # Create a complete date range
+                date_range = pd.date_range(
+                    start=df_grouped['Reported Date'].min(),
+                    end=df_grouped['Reported Date'].max()
+                )
+                df_grouped = df_grouped.set_index('Reported Date').reindex(date_range).rename_axis('Reported Date').reset_index()
+    
+                # Fill missing values
+                df_grouped['Arrivals (Tonnes)'] = df_grouped['Arrivals (Tonnes)'].fillna(method='ffill').fillna(method='bfill')
+                df_grouped['Modal Price (Rs./Quintal)'] = df_grouped['Modal Price (Rs./Quintal)'].fillna(method='ffill').fillna(method='bfill')
+    
+                st.subheader(f"📈 Trends for {selected_state} ({'Market: ' + selected_market if market_wise else 'State'})")
+    
+                if data_type == "Both":
+                    # Min-Max Scaling
+                    scaler = MinMaxScaler()
+                    df_grouped[['Scaled Price', 'Scaled Arrivals']] = scaler.fit_transform(
+                        df_grouped[['Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']]
+                    )
+    
+                    fig = go.Figure()
+    
+                    fig.add_trace(go.Scatter(
+                        x=df_grouped['Reported Date'],
+                        y=df_grouped['Scaled Price'],
+                        mode='lines',
+                        name='Scaled Price',
+                        line=dict(width=1, color='green'),
+                        text=df_grouped['Modal Price (Rs./Quintal)'],
+                        hovertemplate='Date: %{x}<br>Scaled Price: %{y:.2f}<br>Actual Price: %{text:.2f}<extra></extra>'
+                    ))
+    
+                    fig.add_trace(go.Scatter(
+                        x=df_grouped['Reported Date'],
+                        y=df_grouped['Scaled Arrivals'],
+                        mode='lines',
+                        name='Scaled Arrivals',
+                        line=dict(width=1, color='blue'),
+                        text=df_grouped['Arrivals (Tonnes)'],
+                        hovertemplate='Date: %{x}<br>Scaled Arrivals: %{y:.2f}<br>Actual Arrivals: %{text:.2f}<extra></extra>'
+                    ))
+    
+                    fig.update_layout(
+                        title="Price and Arrivals Trend",
+                        xaxis_title='Date',
+                        yaxis_title='Scaled Values',
+                        template='plotly_white'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+    
+                elif data_type == "Price":
+                    # Plot Modal Price
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(
+                        x=df_grouped['Reported Date'],
+                        y=df_grouped['Modal Price (Rs./Quintal)'],
+                        mode='lines',
+                        name='Modal Price',
+                        line=dict(width=1, color='green')
+                    ))
+                    fig.update_layout(title="Modal Price Trend", xaxis_title='Date', yaxis_title='Price', template='plotly_white')
+                    st.plotly_chart(fig, use_container_width=True)
+    
+                elif data_type == "Volume":
+                    # Plot Arrivals (Tonnes)
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(
+                        x=df_grouped['Reported Date'],
+                        y=df_grouped['Arrivals (Tonnes)'],
+                        mode='lines',
+                        name='Arrivals',
+                        line=dict(width=1, color='blue')
+                    ))
+                    fig.update_layout(title="Arrivals Trend", xaxis_title='Date', yaxis_title='Volume', template='plotly_white')
+                    st.plotly_chart(fig, use_container_width=True)
+    
+            else:
+                st.warning("⚠️ No data found for the selected filters.")
+    
+        except Exception as e:
+            st.error(f"❌ Error fetching data: {e}")
+    
+    elif view_mode == "Predictions":
+        st.subheader("📊 Model Analysis")
+        sub_option = st.radio("Select one of the following", ["India", "States", "Market"], horizontal=True)
+    
+        if sub_option == "States":
+            states = ["Karnataka", "Madhya Pradesh", "Gujarat", "Uttar Pradesh", "Telangana"]
+            selected_state = st.selectbox("Select State for Model Training", states)
+            filter_key = f"state_{selected_state}"  # Unique key for each state
+    
             if st.button("Forecast"):
-                query_filter = {}
+                query_filter = {"state": selected_state}
                 df = fetch_and_process_data(query_filter)
-                forecast(df, "India")
+                forecast(df, filter_key)
+    
+        if sub_option == "Market":
+            # Define all market options combined
+            all_markets = ["Rajkot", "Neemuch", "Kalburgi", "Warangal"]
+    
+            # Use a single dropdown to select a market
+            selected_market = st.selectbox("Select Market for Model Training", all_markets)
+    
+            filter_key = f"market_{selected_market}"  # Unique key for each market
+    
+            if st.button("Forecast"):
+                query_filter = {"Market Name": selected_market}
+                df = fetch_and_process_data(query_filter)
+                forecast(df, filter_key)
+        elif sub_option == "India":
+            df = collection_to_dataframe(impExp)
+            if True:
+    
+                if st.button("Forecast"):
+                    query_filter = {}
+                    df = fetch_and_process_data(query_filter)
+                    forecast(df, "India")
+    
+    elif view_mode=="Statistics":
+        document = collection.find_one()
+        print(document)
+        df = get_dataframe_from_collection(collection)
+        print(df)
+        display_statistics(df)
 
-elif view_mode=="Statistics":
-    document = collection.find_one()
-    print(document)
-    df = get_dataframe_from_collection(collection)
-    print(df)
-    display_statistics(df)
+else:
+    with st.form("login_form"):
+        st.subheader("Please log in")
+
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        login_button = st.form_submit_button("Login")
+
+        if login_button:
+            if authenticate_user(username, password):
+                st.session_state.authenticated = True  # Set the authentication state to True
+                st.session_state['username'] = username  # Store username in session state
+                st.write("Login successful!")
+                st.rerun()  # Page will automatically rerun to show the protected content
+            else:
+                st.error("Invalid username or password")
