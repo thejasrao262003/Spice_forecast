@@ -339,7 +339,6 @@ def train_and_evaluate(df):
 
 
 def forecast_next_14_days(df, best_params):
-
     # Step 1: Create the future dataframe for the next 14 days
     last_date = df['Reported Date'].max()
     future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=14)
@@ -381,6 +380,11 @@ def forecast_next_14_days(df, best_params):
     # Forecasted future data
     future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
     future_plot_df['Type'] = 'Forecasted'
+
+    # Add the last actual point to the forecasted data for continuity
+    last_actual_point = predicted_plot_df.iloc[[-1]].copy()
+    last_actual_point['Type'] = 'Forecasted'
+    future_plot_df = pd.concat([last_actual_point, future_plot_df])
 
     # Concatenate all relevant data for plotting
     plot_df = pd.concat([predicted_plot_df, future_plot_df])
