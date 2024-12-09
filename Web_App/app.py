@@ -1119,6 +1119,32 @@ def collection_to_dataframe(collection, drop_id=True):
 
 def display_statistics(df):
     st.title("📊 National Market Statistics Dashboard")
+    st.markdown("""
+        <style>
+            h1 {
+                color: #2e7d32;
+                font-size: 36px;
+                font-weight: bold;
+            }
+            h3 {
+                color: #388e3c;
+                font-size: 28px;
+                font-weight: 600;
+            }
+            p {
+                font-size: 16px;
+                line-height: 1.6;
+            }
+            .highlight {
+                background-color: #f1f8e9;
+                padding: 10px;
+                border-radius: 8px;
+                font-size: 16px;
+                color: #2e7d32;
+                font-weight: 500;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
     # Ensure 'Reported Date' is in datetime format
     df['Reported Date'] = pd.to_datetime(df['Reported Date'])
@@ -1127,102 +1153,80 @@ def display_statistics(df):
         'Arrivals (Tonnes)': 'sum'
     }).reset_index()
 
-    # Display key statistics
     st.subheader("🗓️ Key Statistics")
     latest_date = national_data['Reported Date'].max()
     latest_price = national_data[national_data['Reported Date'] == latest_date]['Modal Price (Rs./Quintal)'].mean()
     latest_arrivals = national_data[national_data['Reported Date'] == latest_date]['Arrivals (Tonnes)'].sum()
 
+    st.markdown("<p class='highlight'>These are the most recent statistics available for the market:</p>", unsafe_allow_html=True)
     st.write(f"**Latest Date**: {latest_date.strftime('%Y-%m-%d')}")
     st.write(f"**Latest Modal Price**: {latest_price:.2f} Rs./Quintal")
     st.write(f"**Latest Arrivals**: {latest_arrivals:.2f} Tonnes")
 
-    # Historical modal price for this day in previous years
     st.subheader("📆 This Day in Previous Years")
-
-    # Fetch data for the current day across previous years
+    st.markdown("<p class='highlight'>Historical data helps in understanding recurring seasonal patterns or unusual deviations for this specific day across years.</p>", unsafe_allow_html=True)
     today = latest_date
     previous_years_data = national_data[national_data['Reported Date'].dt.dayofyear == today.dayofyear]
 
     if not previous_years_data.empty:
-        # Add a Year column without commas
         previous_years_data['Year'] = previous_years_data['Reported Date'].dt.year.astype(str)
-
-        # Select relevant columns and reset the index
         display_data = (previous_years_data[['Year', 'Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']]
                         .sort_values(by='Year', ascending=False)
                         .reset_index(drop=True))
-
-        # Display data as a styled table without index
         st.table(display_data)
     else:
         st.write("No historical data available for this day in previous years.")
 
-
     # Monthly statistics
-
     st.subheader("📅 Monthly Averages Over Years")
-
-    # Extract month from the reported date
+    st.markdown("<p class='highlight'>Monthly averages reveal trends across the year, showing high or low activity periods. These trends may be tied to harvesting seasons, festivals, or supply chain dynamics.</p>", unsafe_allow_html=True)
     national_data['Month'] = national_data['Reported Date'].dt.month
-
-    # Calculate the average modal price and arrivals by month
     monthly_avg_price = national_data.groupby('Month')['Modal Price (Rs./Quintal)'].mean().reset_index()
     monthly_avg_arrivals = national_data.groupby('Month')['Arrivals (Tonnes)'].mean().reset_index()
-
-    # Merge the two DataFrames on the 'Month' column
     monthly_avg = pd.merge(monthly_avg_price, monthly_avg_arrivals, on='Month')
     monthly_avg['Month'] = monthly_avg['Month'].apply(lambda x: calendar.month_name[x])
     monthly_avg.columns = ['Month', 'Average Modal Price (Rs./Quintal)', 'Average Arrivals (Tonnes)']
-    st.write("**Monthly Averages (Price and Arrivals)**")
     st.write(monthly_avg)
 
+    # Yearly statistics
     st.subheader("📆 Yearly Averages")
+    st.markdown("<p class='highlight'>Yearly averages provide a macro perspective of the market trends, showing long-term growth, price stabilization, or supply-demand shifts.</p>", unsafe_allow_html=True)
     national_data['Year'] = national_data['Reported Date'].dt.year
     yearly_avg_price = national_data.groupby('Year')['Modal Price (Rs./Quintal)'].mean().reset_index()
     yearly_avg_arrivals = national_data.groupby('Year')['Arrivals (Tonnes)'].mean().reset_index()
     yearly_avg = pd.merge(yearly_avg_price, yearly_avg_arrivals, on='Year')
-
     yearly_avg['Year'] = yearly_avg['Year'].apply(lambda x: f"{int(x)}")
-
     yearly_avg.columns = ['Year', 'Average Modal Price (Rs./Quintal)', 'Average Arrivals (Tonnes)']
-
-    st.write("**Yearly Averages (Price and Arrivals)**")
     st.write(yearly_avg)
 
-    st.subheader("📈 Largest Daily Price Changes")
-    national_data['Daily Change (%)'] = national_data['Modal Price (Rs./Quintal)'].pct_change() * 100
-    largest_changes = national_data[['Reported Date', 'Modal Price (Rs./Quintal)', 'Daily Change (%)']].nlargest(5, 'Daily Change (%)')
-
+    # Largest daily price changes in the past year
+    st.subheader("📈 Largest Daily Price Changes (Past Year)")
+    st.markdown("<p class='highlight'>This analysis helps identify significant price fluctuations, often caused by external factors like weather, policy changes, or supply chain disruptions.</p>", unsafe_allow_html=True)
+    one_year_ago = latest_date - pd.DateOffset(years=1)
+    recent_data = national_data[national_data['Reported Date'] >= one_year_ago]
+    recent_data['Daily Change (%)'] = recent_data['Modal Price (Rs./Quintal)'].pct_change() * 100
+    largest_changes = recent_data[['Reported Date', 'Modal Price (Rs./Quintal)', 'Daily Change (%)']].nlargest(5, 'Daily Change (%)')
     largest_changes['Reported Date'] = largest_changes['Reported Date'].dt.date
     largest_changes = largest_changes.reset_index(drop=True)
     st.write(largest_changes)
 
-    st.subheader("🏆 Top 5 Highest and Lowest Prices")
-
-    highest_prices = national_data.nlargest(5, 'Modal Price (Rs./Quintal)')[['Reported Date', 'Modal Price (Rs./Quintal)']]
-    lowest_prices = national_data.nsmallest(5, 'Modal Price (Rs./Quintal)')[['Reported Date', 'Modal Price (Rs./Quintal)']]
-
+    # Top 5 highest and lowest prices in the past year
+    st.subheader("🏆 Top 5 Highest and Lowest Prices (Past Year)")
+    st.markdown("<p class='highlight'>Identifying price extremes helps gauge the highest market potential and the lowest supply-demand equilibrium over the past year.</p>", unsafe_allow_html=True)
+    highest_prices = recent_data.nlargest(5, 'Modal Price (Rs./Quintal)')[['Reported Date', 'Modal Price (Rs./Quintal)']]
+    lowest_prices = recent_data.nsmallest(5, 'Modal Price (Rs./Quintal)')[['Reported Date', 'Modal Price (Rs./Quintal)']]
     highest_prices['Reported Date'] = highest_prices['Reported Date'].dt.date
     lowest_prices['Reported Date'] = lowest_prices['Reported Date'].dt.date
-
     highest_prices = highest_prices.reset_index(drop=True)
     lowest_prices = lowest_prices.reset_index(drop=True)
-
     st.write("**Top 5 Highest Prices**")
     st.write(highest_prices)
-
     st.write("**Top 5 Lowest Prices**")
     st.write(lowest_prices)
 
+    # Data snapshot
     st.subheader("🗂️ Data Snapshot")
-
-    # Remove commas from the 'Year' column
-    national_data['Year'] = national_data['Reported Date'].dt.year.astype(str).str.replace(",", "")
-
-    # Remove time from 'Reported Date' and extract only the date
-    national_data['Reported Date'] = national_data['Reported Date'].dt.date
-    national_data = national_data.drop(columns=['Month', 'Year'], errors='ignore')
+    st.markdown("<p class='highlight'>A concise overview of the most recent data, including rolling averages and lagged values, to support quick decision-making and analysis.</p>", unsafe_allow_html=True)
     national_data['Rolling Mean (14 Days)'] = national_data['Modal Price (Rs./Quintal)'].rolling(window=14).mean()
     national_data['Lag (14 Days)'] = national_data['Modal Price (Rs./Quintal)'].shift(14)
     national_data = national_data.sort_values(by='Reported Date', ascending=False)
