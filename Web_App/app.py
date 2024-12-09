@@ -1227,9 +1227,18 @@ def display_statistics(df):
     # Data snapshot
     st.subheader("🗂️ Data Snapshot")
     st.markdown("<p class='highlight'>A concise overview of the most recent data, including rolling averages and lagged values, to support quick decision-making and analysis.</p>", unsafe_allow_html=True)
+
+    # Add rolling mean and lagged values
     national_data['Rolling Mean (14 Days)'] = national_data['Modal Price (Rs./Quintal)'].rolling(window=14).mean()
     national_data['Lag (14 Days)'] = national_data['Modal Price (Rs./Quintal)'].shift(14)
+
+    # Remove time from 'Reported Date' column
+    national_data['Reported Date'] = national_data['Reported Date'].dt.date
+
+    # Sort by 'Reported Date' in descending order
     national_data = national_data.sort_values(by='Reported Date', ascending=False)
+
+    # Display the latest 14 rows
     st.dataframe(national_data.head(14).reset_index(drop=True), use_container_width=True, height=525)
 
 def fetch_and_store_data():
