@@ -339,7 +339,6 @@ def train_and_evaluate(df):
 
 
 def forecast_next_14_days(df, best_params):
-    import streamlit as st
 
     # Step 1: Create the future dataframe for the next 14 days
     last_date = df['Reported Date'].max()
@@ -370,30 +369,26 @@ def forecast_next_14_days(df, best_params):
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
-    test_df = original_df[original_df['Reported Date'] >= '2024-01-01']
+    # Get last 14 actual values for comparison
+    actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
 
-    # Get max date from predicted data
-    max_date = test_df['Reported Date'].max()
-
-    # Filter test data to plot the last 14 days of predictions
-    test_last_14_df = test_df[test_df['Reported Date'] > (max_date - pd.Timedelta(days=14))]
-
-    # Predicted data
-    predicted_plot_df = test_last_14_df[['Reported Date']].copy()
+    # Predicted data (using the last 14 actual values)
+    predicted_plot_df = actual_last_14_df[['Reported Date']].copy()
     predicted_plot_df['Modal Price (Rs./Quintal)'] = model.predict(
-        test_last_14_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
-    predicted_plot_df['Type'] = 'Predicted'
+        actual_last_14_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
+    predicted_plot_df['Type'] = 'Actual'
 
     # Forecasted future data
     future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
     future_plot_df['Type'] = 'Forecasted'
 
-    # Concatenate all relevant data
+    # Concatenate all relevant data for plotting
     plot_df = pd.concat([predicted_plot_df, future_plot_df])
 
+    # Plot the data using Plotly
     fig = go.Figure()
 
-    for plot_type, color, dash in [('Predicted', 'green', 'dot'), ('Forecasted', 'red', 'dash')]:
+    for plot_type, color, dash in [('Actual', 'blue', 'solid'), ('Forecasted', 'red', 'dash')]:
         data = plot_df[plot_df['Type'] == plot_type]
         fig.add_trace(go.Scatter(
             x=data['Reported Date'],
@@ -404,7 +399,7 @@ def forecast_next_14_days(df, best_params):
         ))
 
     fig.update_layout(
-        title="Last 14 Days of Predictions and Forecasted Next 14 Days",
+        title="Actual vs Forecasted Modal Price (Rs./Quintal)",
         xaxis_title="Date",
         yaxis_title="Modal Price (Rs./Quintal)",
         template="plotly_white"
@@ -429,7 +424,6 @@ def fetch_and_process_data(query_filter):
     except Exception as e:
         st.error(f"❌ Error fetching data: {e}")
         return None
-
 # Function to save best_params to MongoDB
 def save_best_params(filter_key, best_params):
     best_params["filter_key"] = filter_key
