@@ -1602,9 +1602,7 @@ if st.session_state.authenticated:
     
     elif view_mode=="Statistics":
         document = collection.find_one()
-        print(document)
         df = get_dataframe_from_collection(collection)
-        print(df)
         display_statistics(df)
 
 else:
