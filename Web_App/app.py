@@ -1341,13 +1341,14 @@ if st.session_state.authenticated:
     view_mode = st.radio("Select View", ["Statistics", "Plots", "Predictions"], horizontal=True)
     
     if view_mode == "Plots":
+        # Sidebar for navigation and filtering
         st.sidebar.header("Filters")
         selected_period = st.sidebar.selectbox(
             "Select Time Period",
             ["2 Weeks", "1 Month", "3 Months", "1 Year", "5 Years"],
             index=1
         )
-    
+
         # Mapping selected period to days
         period_mapping = {
             "2 Weeks": 14,
@@ -1357,10 +1358,10 @@ if st.session_state.authenticated:
             "5 Years": 1825
         }
         st.session_state.selected_period = period_mapping[selected_period]
-    
+
         # Dropdown for state selection
         selected_state = st.sidebar.selectbox("Select State", list(state_market_dict.keys()))
-    
+
         # Dropdown for market analysis
         market_wise = st.sidebar.checkbox("Market Wise Analysis")
         if market_wise:
@@ -1369,118 +1370,120 @@ if st.session_state.authenticated:
             query_filter = {"state": selected_state, "Market Name": selected_market}
         else:
             query_filter = {"state": selected_state}
-    
+
         # Dropdown for data type
         data_type = st.sidebar.radio(
             "Select Data Type",
             ["Price", "Volume", "Both"]
         )
-    
+
         # Add date filtering based on selected period
         query_filter["Reported Date"] = {
             "$gte": datetime.now() - timedelta(days=st.session_state.selected_period)
         }
-    
-        # Fetch data from MongoDB
-        try:
-            cursor = collection.find(query_filter)
-            data = list(cursor)
-    
-            if data:
-                # Convert MongoDB data to a DataFrame
-                df = pd.DataFrame(data)
-                df['Reported Date'] = pd.to_datetime(df['Reported Date'])
-                print("df")
-                # Group by Reported Date
-                df_grouped = (
-                    df.groupby('Reported Date', as_index=False)
-                    .agg({
-                        'Arrivals (Tonnes)': 'sum',
-                        'Modal Price (Rs./Quintal)': 'mean'
-                    })
-                )
-    
-                # Create a complete date range
-                date_range = pd.date_range(
-                    start=df_grouped['Reported Date'].min(),
-                    end=df_grouped['Reported Date'].max()
-                )
-                df_grouped = df_grouped.set_index('Reported Date').reindex(date_range).rename_axis('Reported Date').reset_index()
-    
-                # Fill missing values
-                df_grouped['Arrivals (Tonnes)'] = df_grouped['Arrivals (Tonnes)'].fillna(method='ffill').fillna(method='bfill')
-                df_grouped['Modal Price (Rs./Quintal)'] = df_grouped['Modal Price (Rs./Quintal)'].fillna(method='ffill').fillna(method='bfill')
-    
-                st.subheader(f"📈 Trends for {selected_state} ({'Market: ' + selected_market if market_wise else 'State'})")
-    
-                if data_type == "Both":
-                    # Min-Max Scaling
-                    scaler = MinMaxScaler()
-                    df_grouped[['Scaled Price', 'Scaled Arrivals']] = scaler.fit_transform(
-                        df_grouped[['Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']]
+
+        # Submit button to trigger the query and plot
+        if st.sidebar.button("Submit"):
+            # Fetch data from MongoDB
+            try:
+                cursor = collection.find(query_filter)
+                data = list(cursor)
+
+                if data:
+                    # Convert MongoDB data to a DataFrame
+                    df = pd.DataFrame(data)
+                    df['Reported Date'] = pd.to_datetime(df['Reported Date'])
+
+                    # Group by Reported Date
+                    df_grouped = (
+                        df.groupby('Reported Date', as_index=False)
+                        .agg({
+                            'Arrivals (Tonnes)': 'sum',
+                            'Modal Price (Rs./Quintal)': 'mean'
+                        })
                     )
-    
-                    fig = go.Figure()
-    
-                    fig.add_trace(go.Scatter(
-                        x=df_grouped['Reported Date'],
-                        y=df_grouped['Scaled Price'],
-                        mode='lines',
-                        name='Scaled Price',
-                        line=dict(width=1, color='green'),
-                        text=df_grouped['Modal Price (Rs./Quintal)'],
-                        hovertemplate='Date: %{x}<br>Scaled Price: %{y:.2f}<br>Actual Price: %{text:.2f}<extra></extra>'
-                    ))
-    
-                    fig.add_trace(go.Scatter(
-                        x=df_grouped['Reported Date'],
-                        y=df_grouped['Scaled Arrivals'],
-                        mode='lines',
-                        name='Scaled Arrivals',
-                        line=dict(width=1, color='blue'),
-                        text=df_grouped['Arrivals (Tonnes)'],
-                        hovertemplate='Date: %{x}<br>Scaled Arrivals: %{y:.2f}<br>Actual Arrivals: %{text:.2f}<extra></extra>'
-                    ))
-    
-                    fig.update_layout(
-                        title="Price and Arrivals Trend",
-                        xaxis_title='Date',
-                        yaxis_title='Scaled Values',
-                        template='plotly_white'
+
+                    # Create a complete date range
+                    date_range = pd.date_range(
+                        start=df_grouped['Reported Date'].min(),
+                        end=df_grouped['Reported Date'].max()
                     )
-                    st.plotly_chart(fig, use_container_width=True)
-    
-                elif data_type == "Price":
-                    # Plot Modal Price
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=df_grouped['Reported Date'],
-                        y=df_grouped['Modal Price (Rs./Quintal)'],
-                        mode='lines',
-                        name='Modal Price',
-                        line=dict(width=1, color='green')
-                    ))
-                    fig.update_layout(title="Modal Price Trend", xaxis_title='Date', yaxis_title='Price', template='plotly_white')
-                    st.plotly_chart(fig, use_container_width=True)
-    
-                elif data_type == "Volume":
-                    # Plot Arrivals (Tonnes)
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(
-                        x=df_grouped['Reported Date'],
-                        y=df_grouped['Arrivals (Tonnes)'],
-                        mode='lines',
-                        name='Arrivals',
-                        line=dict(width=1, color='blue')
-                    ))
-                    fig.update_layout(title="Arrivals Trend", xaxis_title='Date', yaxis_title='Volume', template='plotly_white')
-                    st.plotly_chart(fig, use_container_width=True)
-    
-            else:
-                st.warning("⚠️ No data found for the selected filters.")
-    
-        except Exception as e:
-            st.error(f"❌ Error fetching data: {e}")
+                    df_grouped = df_grouped.set_index('Reported Date').reindex(date_range).rename_axis('Reported Date').reset_index()
+
+                    # Fill missing values
+                    df_grouped['Arrivals (Tonnes)'] = df_grouped['Arrivals (Tonnes)'].fillna(method='ffill').fillna(method='bfill')
+                    df_grouped['Modal Price (Rs./Quintal)'] = df_grouped['Modal Price (Rs./Quintal)'].fillna(method='ffill').fillna(method='bfill')
+
+                    st.subheader(f"📈 Trends for {selected_state} ({'Market: ' + selected_market if market_wise else 'State'})")
+
+                    if data_type == "Both":
+                        # Min-Max Scaling
+                        scaler = MinMaxScaler()
+                        df_grouped[['Scaled Price', 'Scaled Arrivals']] = scaler.fit_transform(
+                            df_grouped[['Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']]
+                        )
+
+                        fig = go.Figure()
+
+                        fig.add_trace(go.Scatter(
+                            x=df_grouped['Reported Date'],
+                            y=df_grouped['Scaled Price'],
+                            mode='lines',
+                            name='Scaled Price',
+                            line=dict(width=1, color='green'),
+                            text=df_grouped['Modal Price (Rs./Quintal)'],
+                            hovertemplate='Date: %{x}<br>Scaled Price: %{y:.2f}<br>Actual Price: %{text:.2f}<extra></extra>'
+                        ))
+
+                        fig.add_trace(go.Scatter(
+                            x=df_grouped['Reported Date'],
+                            y=df_grouped['Scaled Arrivals'],
+                            mode='lines',
+                            name='Scaled Arrivals',
+                            line=dict(width=1, color='blue'),
+                            text=df_grouped['Arrivals (Tonnes)'],
+                            hovertemplate='Date: %{x}<br>Scaled Arrivals: %{y:.2f}<br>Actual Arrivals: %{text:.2f}<extra></extra>'
+                        ))
+
+                        fig.update_layout(
+                            title="Price and Arrivals Trend",
+                            xaxis_title='Date',
+                            yaxis_title='Scaled Values',
+                            template='plotly_white'
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    elif data_type == "Price":
+                        # Plot Modal Price
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=df_grouped['Reported Date'],
+                            y=df_grouped['Modal Price (Rs./Quintal)'],
+                            mode='lines',
+                            name='Modal Price',
+                            line=dict(width=1, color='green')
+                        ))
+                        fig.update_layout(title="Modal Price Trend", xaxis_title='Date', yaxis_title='Price', template='plotly_white')
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    elif data_type == "Volume":
+                        # Plot Arrivals (Tonnes)
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=df_grouped['Reported Date'],
+                            y=df_grouped['Arrivals (Tonnes)'],
+                            mode='lines',
+                            name='Arrivals',
+                            line=dict(width=1, color='blue')
+                        ))
+                        fig.update_layout(title="Arrivals Trend", xaxis_title='Date', yaxis_title='Volume', template='plotly_white')
+                        st.plotly_chart(fig, use_container_width=True)
+
+                else:
+                    st.warning("⚠️ No data found for the selected filters.")
+
+            except Exception as e:
+                st.error(f"❌ Error fetching data: {e}")
     
     elif view_mode == "Predictions":
         st.subheader("📊 Model Analysis")
