@@ -1430,7 +1430,7 @@ if st.session_state.authenticated:
     if st.button("Get Live Data Feed"):
         fetch_and_store_data()
     # Top-level radio buttons for switching views
-    view_mode = st.radio("Select View", ["Statistics", "Plots", "Predictions"], horizontal=True)
+    view_mode = st.radio("", ["Statistics", "Plots", "Predictions"], horizontal=True)
     
     if view_mode == "Plots":
         # Sidebar for navigation and filtering
