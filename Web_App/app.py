@@ -10,6 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import certifi
+import calendar
 import os
 import requests
 from bs4 import BeautifulSoup
@@ -1116,14 +1117,11 @@ def collection_to_dataframe(collection, drop_id=True):
 
     return df
 
-
 def display_statistics(df):
     st.title("📊 National Market Statistics Dashboard")
 
     # Ensure 'Reported Date' is in datetime format
     df['Reported Date'] = pd.to_datetime(df['Reported Date'])
-    print(df)
-    # Aggregate data at the national level
     national_data = df.groupby('Reported Date').agg({
         'Modal Price (Rs./Quintal)': 'mean',
         'Arrivals (Tonnes)': 'sum'
@@ -1141,64 +1139,94 @@ def display_statistics(df):
 
     # Historical modal price for this day in previous years
     st.subheader("📆 This Day in Previous Years")
+
+    # Fetch data for the current day across previous years
     today = latest_date
     previous_years_data = national_data[national_data['Reported Date'].dt.dayofyear == today.dayofyear]
+
     if not previous_years_data.empty:
-        previous_years_data['Year'] = previous_years_data['Reported Date'].dt.year
-        st.write(previous_years_data[['Year', 'Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']])
+        # Add a Year column without commas
+        previous_years_data['Year'] = previous_years_data['Reported Date'].dt.year.astype(str)
+
+        # Select relevant columns and reset the index
+        display_data = (previous_years_data[['Year', 'Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']]
+                        .sort_values(by='Year', ascending=False)
+                        .reset_index(drop=True))
+
+        # Display data as a styled table without index
+        st.table(display_data)
     else:
         st.write("No historical data available for this day in previous years.")
 
+
     # Monthly statistics
+
     st.subheader("📅 Monthly Averages Over Years")
+
+    # Extract month from the reported date
     national_data['Month'] = national_data['Reported Date'].dt.month
+
+    # Calculate the average modal price and arrivals by month
     monthly_avg_price = national_data.groupby('Month')['Modal Price (Rs./Quintal)'].mean().reset_index()
     monthly_avg_arrivals = national_data.groupby('Month')['Arrivals (Tonnes)'].mean().reset_index()
-    st.write("**Average Modal Price by Month**")
-    st.write(monthly_avg_price)
-    st.write("**Average Arrivals by Month**")
-    st.write(monthly_avg_arrivals)
 
-    # Yearly averages
+    # Merge the two DataFrames on the 'Month' column
+    monthly_avg = pd.merge(monthly_avg_price, monthly_avg_arrivals, on='Month')
+    monthly_avg['Month'] = monthly_avg['Month'].apply(lambda x: calendar.month_name[x])
+    monthly_avg.columns = ['Month', 'Average Modal Price (Rs./Quintal)', 'Average Arrivals (Tonnes)']
+    st.write("**Monthly Averages (Price and Arrivals)**")
+    st.write(monthly_avg)
+
     st.subheader("📆 Yearly Averages")
     national_data['Year'] = national_data['Reported Date'].dt.year
     yearly_avg_price = national_data.groupby('Year')['Modal Price (Rs./Quintal)'].mean().reset_index()
     yearly_avg_arrivals = national_data.groupby('Year')['Arrivals (Tonnes)'].mean().reset_index()
-    st.write("**Yearly Average Modal Price**")
-    st.write(yearly_avg_price)
-    st.write("**Yearly Average Arrivals**")
-    st.write(yearly_avg_arrivals)
+    yearly_avg = pd.merge(yearly_avg_price, yearly_avg_arrivals, on='Year')
 
-    # Largest price changes
+    yearly_avg['Year'] = yearly_avg['Year'].apply(lambda x: f"{int(x)}")
+
+    yearly_avg.columns = ['Year', 'Average Modal Price (Rs./Quintal)', 'Average Arrivals (Tonnes)']
+
+    st.write("**Yearly Averages (Price and Arrivals)**")
+    st.write(yearly_avg)
+
     st.subheader("📈 Largest Daily Price Changes")
     national_data['Daily Change (%)'] = national_data['Modal Price (Rs./Quintal)'].pct_change() * 100
     largest_changes = national_data[['Reported Date', 'Modal Price (Rs./Quintal)', 'Daily Change (%)']].nlargest(5, 'Daily Change (%)')
+
+    largest_changes['Reported Date'] = largest_changes['Reported Date'].dt.date
+    largest_changes = largest_changes.reset_index(drop=True)
     st.write(largest_changes)
 
-    # Correlation analysis
-    st.subheader("🔗 Correlation Analysis")
-    correlation = national_data[['Arrivals (Tonnes)', 'Modal Price (Rs./Quintal)']].corr().iloc[0, 1]
-    st.write(f"**Correlation between Arrivals and Modal Price**: {correlation:.2f}")
-
-    # Top 5 highest and lowest prices
     st.subheader("🏆 Top 5 Highest and Lowest Prices")
+
     highest_prices = national_data.nlargest(5, 'Modal Price (Rs./Quintal)')[['Reported Date', 'Modal Price (Rs./Quintal)']]
     lowest_prices = national_data.nsmallest(5, 'Modal Price (Rs./Quintal)')[['Reported Date', 'Modal Price (Rs./Quintal)']]
+
+    highest_prices['Reported Date'] = highest_prices['Reported Date'].dt.date
+    lowest_prices['Reported Date'] = lowest_prices['Reported Date'].dt.date
+
+    highest_prices = highest_prices.reset_index(drop=True)
+    lowest_prices = lowest_prices.reset_index(drop=True)
+
     st.write("**Top 5 Highest Prices**")
     st.write(highest_prices)
+
     st.write("**Top 5 Lowest Prices**")
     st.write(lowest_prices)
 
-    # Missing dates analysis
-    st.subheader("📉 Missing Dates Analysis")
-    missing_dates = set(pd.date_range(national_data['Reported Date'].min(), national_data['Reported Date'].max())) - set(national_data['Reported Date'])
-    st.write(f"**Total Missing Dates**: {len(missing_dates)}")
-    if len(missing_dates) > 0:
-        st.write(f"**Missing Dates**: {sorted(list(missing_dates))[:10]} (Showing up to 10 dates)")
-
-    # Display data snapshot
     st.subheader("🗂️ Data Snapshot")
-    st.dataframe(national_data.head(10))
+
+    # Remove commas from the 'Year' column
+    national_data['Year'] = national_data['Reported Date'].dt.year.astype(str).str.replace(",", "")
+
+    # Remove time from 'Reported Date' and extract only the date
+    national_data['Reported Date'] = national_data['Reported Date'].dt.date
+    national_data = national_data.drop(columns=['Month', 'Year'], errors='ignore')
+    national_data['Rolling Mean (14 Days)'] = national_data['Modal Price (Rs./Quintal)'].rolling(window=14).mean()
+    national_data['Lag (14 Days)'] = national_data['Modal Price (Rs./Quintal)'].shift(14)
+    national_data = national_data.sort_values(by='Reported Date', ascending=False)
+    st.dataframe(national_data.head(14).reset_index(drop=True), use_container_width=True, height=525)
 
 def fetch_and_store_data():
     # Connect to MongoDB Atlas
@@ -1311,22 +1339,73 @@ def authenticate_user(username, password):
 # CSS for responsive and professional design
 st.markdown("""
     <style>
+        /* Main layout adjustments */
         .main { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #4CAF50; font-family: 'Arial Black', sans-serif; }
+
+        /* Header style */
+        h1 { 
+            color: #4CAF50; 
+            font-family: 'Arial Black', sans-serif; 
+        }
+
+        /* Button Styling */
         .stButton>button {
-            background-color: #4CAF50; color: white; font-size: 16px;
-            border-radius: 8px; padding: 12px; margin: 5px;
+            background-color: #4CAF50; 
+            color: white; 
+            font-size: 16px;
+            border-radius: 12px; 
+            padding: 12px 20px; 
+            margin: 10px auto;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.4s ease, transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
         }
-        .stButton>button:hover { background-color: #45a049; }
-        .stSelectbox>div { font-size: 14px; margin-top: 5px; }
-        .plotly-graph-div {
+
+        /* Hover Effects for Button */
+        .stButton>button:hover { 
+            background-color: #2196F3; /* Change color on hover */
+            color: #ffffff; /* Ensure text is readable */
+            transform: scale(1.1) rotate(-2deg); /* Slight zoom and tilt */
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.3); /* Enhance shadow effect */
+        }
+
+        /* Animation Effect */
+        .stButton>button:after {
+            content: ''; 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            right: 0; 
+            bottom: 0;
             border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(45deg, #4CAF50, #2196F3, #FFC107, #FF5722);
+            z-index: -1; /* Ensure gradient stays behind the button */
+            opacity: 0;
+            transition: opacity 0.5s ease;
         }
+
+        /* Glow Effect on Hover */
+        .stButton>button:hover:after {
+            opacity: 1;
+            animation: glowing 2s infinite alternate;
+        }
+
+        /* Keyframes for Glow Animation */
+        @keyframes glowing {
+            0% { box-shadow: 0 0 5px #4CAF50, 0 0 10px #4CAF50; }
+            100% { box-shadow: 0 0 20px #2196F3, 0 0 30px #2196F3; }
+        }
+
+        /* Responsive Design */
         @media (max-width: 768px) {
-            .stButton>button { width: 100%; font-size: 14px; }
-            .stSelectbox>div { font-size: 12px; }
-            h1 { font-size: 24px; }
+            .stButton>button { 
+                width: 100%; 
+                font-size: 14px; 
+            }
+            h1 { 
+                font-size: 24px; 
+            }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -1383,7 +1462,7 @@ if st.session_state.authenticated:
         }
 
         # Submit button to trigger the query and plot
-        if st.sidebar.button("Submit"):
+        if st.sidebar.button("✨ Let's go!"):
             # Fetch data from MongoDB
             try:
                 cursor = collection.find(query_filter)
