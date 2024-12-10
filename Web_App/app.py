@@ -1639,9 +1639,9 @@ else:
 
         if login_button:
             if authenticate_user(username, password):
-                st.session_state.authenticated = True  # Set the authentication state to True
-                st.session_state['username'] = username  # Store username in session state
+                st.session_state.authenticated = True
+                st.session_state['username'] = username
                 st.write("Login successful!")
-                st.rerun()  # Page will automatically rerun to show the protected content
+                st.rerun()
             else:
                 st.error("Invalid username or password")
