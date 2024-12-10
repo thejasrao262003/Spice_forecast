@@ -6,22 +6,17 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 from sklearn.preprocessing import MinMaxScaler
-from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
-import certifi
 import calendar
-import os
+import certifi
 import requests
+from werkzeug.security import generate_password_hash, check_password_hash
 from bs4 import BeautifulSoup
-import time
 import json
 from itertools import product
 from tqdm import tqdm
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-
-
-mongo_uri = st.secrets["MONGO_URI"]
 
 state_market_dict = {
     "Karnataka": [
@@ -350,7 +345,7 @@ def forecast_next_14_days(df, best_params):
 
     full_df = create_forecasting_features(full_df)
 
-    # Step 2: Split data back into original and future sets
+    # Step 3: Split data back into original and future sets
     original_df = full_df[full_df['Reported Date'] <= last_date]
     future_df = full_df[full_df['Reported Date'] > last_date]
 
@@ -361,33 +356,39 @@ def forecast_next_14_days(df, best_params):
     # Prepare the dataset for forecasting
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
-    # Step 3: Train the model with the best parameters on the full dataset
+    # Step 4: Train the model with the best parameters on the full dataset
     model = XGBRegressor(**best_params)
     model.fit(X_train, y_train)
 
-    # Step 4: Forecast for the next 14 days
+    # Step 5: Forecast for the next 14 days
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
-    # Get the last 14 days of actual data
-    actual_last_14_df = original_df.iloc[-14:][['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
+    # Get last 14 actual values for comparison
+    actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
 
-    # Add the last actual point to the forecasted data for continuity
-    last_actual_point = actual_last_14_df.iloc[[-1]].copy()
-    future_plot_df = pd.concat([last_actual_point, future_df[['Reported Date', 'Modal Price (Rs./Quintal)']]])
+    # Predicted data (using the last 14 actual values)
+    predicted_plot_df = actual_last_14_df[['Reported Date']].copy()
+    predicted_plot_df['Modal Price (Rs./Quintal)'] = model.predict(
+        actual_last_14_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
+    predicted_plot_df['Type'] = 'Actual'
 
-    # Add a type column for plotting
-    actual_last_14_df['Type'] = 'Actual'
+    # Forecasted future data
+    future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
     future_plot_df['Type'] = 'Forecasted'
 
-    # Concatenate the data for plotting
-    plot_df = pd.concat([actual_last_14_df, future_plot_df])
+    # Add the last actual point to the forecasted data for continuity
+    last_actual_point = predicted_plot_df.iloc[[-1]].copy()
+    last_actual_point['Type'] = 'Forecasted'
+    future_plot_df = pd.concat([last_actual_point, future_plot_df])
+
+    # Concatenate all relevant data for plotting
+    plot_df = pd.concat([predicted_plot_df, future_plot_df])
 
     # Plot the data using Plotly
     fig = go.Figure()
 
-    for plot_type, color, dash in [('Actual', 'blue', 'solid'),
-                                   ('Forecasted', 'red', 'dash')]:
+    for plot_type, color, dash in [('Actual', 'blue', 'solid'), ('Forecasted', 'red', 'dash')]:
         data = plot_df[plot_df['Type'] == plot_type]
         fig.add_trace(go.Scatter(
             x=data['Reported Date'],
@@ -408,6 +409,8 @@ def forecast_next_14_days(df, best_params):
 
     st.success("Forecasting for the next 14 days successfully completed!")
 
+
+
 def fetch_and_process_data(query_filter):
     try:
         cursor = collection.find(query_filter)
@@ -423,6 +426,7 @@ def fetch_and_process_data(query_filter):
     except Exception as e:
         st.error(f"❌ Error fetching data: {e}")
         return None
+
 # Function to save best_params to MongoDB
 def save_best_params(filter_key, best_params):
     best_params["filter_key"] = filter_key
@@ -1111,6 +1115,7 @@ def collection_to_dataframe(collection, drop_id=True):
 
     return df
 
+
 def display_statistics(df):
     st.title("📊 National Market Statistics Dashboard")
     st.markdown("""
@@ -1152,13 +1157,13 @@ def display_statistics(df):
     latest_price = national_data[national_data['Reported Date'] == latest_date]['Modal Price (Rs./Quintal)'].mean()
     latest_arrivals = national_data[national_data['Reported Date'] == latest_date]['Arrivals (Tonnes)'].sum()
 
-    st.markdown("<p class='highlight'>These are the most recent statistics available for the market:</p>", unsafe_allow_html=True)
+    st.markdown("<p class='highlight'>This section provides the most recent statistics for the market. It includes the latest available date, the average price of commodities, and the total quantity of goods arriving at the market. These metrics offer an up-to-date snapshot of market conditions.</p>", unsafe_allow_html=True)
     st.write(f"**Latest Date**: {latest_date.strftime('%Y-%m-%d')}")
     st.write(f"**Latest Modal Price**: {latest_price:.2f} Rs./Quintal")
     st.write(f"**Latest Arrivals**: {latest_arrivals:.2f} Tonnes")
 
     st.subheader("📆 This Day in Previous Years")
-    st.markdown("<p class='highlight'>Historical data helps in understanding recurring seasonal patterns or unusual deviations for this specific day across years.</p>", unsafe_allow_html=True)
+    st.markdown("<p class='highlight'>This table shows the modal price and total arrivals for this exact day across previous years. It provides a historical perspective to compare against current market conditions. This section examines historical data for the same day in previous years. By analyzing trends for this specific day, you can identify seasonal patterns, supply-demand changes, or any deviations that might warrant closer attention.</p>", unsafe_allow_html=True)
     today = latest_date
     previous_years_data = national_data[national_data['Reported Date'].dt.dayofyear == today.dayofyear]
 
@@ -1171,9 +1176,8 @@ def display_statistics(df):
     else:
         st.write("No historical data available for this day in previous years.")
 
-    # Monthly statistics
     st.subheader("📅 Monthly Averages Over Years")
-    st.markdown("<p class='highlight'>Monthly averages reveal trends across the year, showing high or low activity periods. These trends may be tied to harvesting seasons, festivals, or supply chain dynamics.</p>", unsafe_allow_html=True)
+    st.markdown("<p class='highlight'>This section displays the average modal prices and arrivals for each month across all years. It helps identify seasonal trends and peak activity months, which can be crucial for inventory planning and market predictions.</p>", unsafe_allow_html=True)
     national_data['Month'] = national_data['Reported Date'].dt.month
     monthly_avg_price = national_data.groupby('Month')['Modal Price (Rs./Quintal)'].mean().reset_index()
     monthly_avg_arrivals = national_data.groupby('Month')['Arrivals (Tonnes)'].mean().reset_index()
@@ -1182,9 +1186,8 @@ def display_statistics(df):
     monthly_avg.columns = ['Month', 'Average Modal Price (Rs./Quintal)', 'Average Arrivals (Tonnes)']
     st.write(monthly_avg)
 
-    # Yearly statistics
     st.subheader("📆 Yearly Averages")
-    st.markdown("<p class='highlight'>Yearly averages provide a macro perspective of the market trends, showing long-term growth, price stabilization, or supply-demand shifts.</p>", unsafe_allow_html=True)
+    st.markdown("<p class='highlight'>Yearly averages provide insights into long-term trends in pricing and arrivals. By examining these values, you can detect overall growth, stability, or volatility in the market.</p>", unsafe_allow_html=True)
     national_data['Year'] = national_data['Reported Date'].dt.year
     yearly_avg_price = national_data.groupby('Year')['Modal Price (Rs./Quintal)'].mean().reset_index()
     yearly_avg_arrivals = national_data.groupby('Year')['Arrivals (Tonnes)'].mean().reset_index()
@@ -1193,9 +1196,8 @@ def display_statistics(df):
     yearly_avg.columns = ['Year', 'Average Modal Price (Rs./Quintal)', 'Average Arrivals (Tonnes)']
     st.write(yearly_avg)
 
-    # Largest daily price changes in the past year
     st.subheader("📈 Largest Daily Price Changes (Past Year)")
-    st.markdown("<p class='highlight'>This analysis helps identify significant price fluctuations, often caused by external factors like weather, policy changes, or supply chain disruptions.</p>", unsafe_allow_html=True)
+    st.markdown("<p class='highlight'>This analysis identifies the most significant daily price changes in the past year. These fluctuations can highlight periods of market volatility, potentially caused by external factors like weather, policy changes, or supply chain disruptions.</p>", unsafe_allow_html=True)
     one_year_ago = latest_date - pd.DateOffset(years=1)
     recent_data = national_data[national_data['Reported Date'] >= one_year_ago]
     recent_data['Daily Change (%)'] = recent_data['Modal Price (Rs./Quintal)'].pct_change() * 100
@@ -1204,9 +1206,8 @@ def display_statistics(df):
     largest_changes = largest_changes.reset_index(drop=True)
     st.write(largest_changes)
 
-    # Top 5 highest and lowest prices in the past year
     st.subheader("🏆 Top 5 Highest and Lowest Prices (Past Year)")
-    st.markdown("<p class='highlight'>Identifying price extremes helps gauge the highest market potential and the lowest supply-demand equilibrium over the past year.</p>", unsafe_allow_html=True)
+    st.markdown("<p class='highlight'>This section highlights the highest and lowest prices over the past year. These values reflect the extremes of market dynamics, helping to understand price ceilings and floors in the recent period.</p>", unsafe_allow_html=True)
     highest_prices = recent_data.nlargest(5, 'Modal Price (Rs./Quintal)')[['Reported Date', 'Modal Price (Rs./Quintal)']]
     lowest_prices = recent_data.nsmallest(5, 'Modal Price (Rs./Quintal)')[['Reported Date', 'Modal Price (Rs./Quintal)']]
     highest_prices['Reported Date'] = highest_prices['Reported Date'].dt.date
@@ -1218,22 +1219,15 @@ def display_statistics(df):
     st.write("**Top 5 Lowest Prices**")
     st.write(lowest_prices)
 
-    # Data snapshot
     st.subheader("🗂️ Data Snapshot")
-    st.markdown("<p class='highlight'>A concise overview of the most recent data, including rolling averages and lagged values, to support quick decision-making and analysis.</p>", unsafe_allow_html=True)
-
-    # Add rolling mean and lagged values
+    st.markdown("<p class='highlight'>This snapshot provides a concise overview of the latest data, including rolling averages and lagged values. These metrics help identify short-term trends and lagged effects in pricing.</p>", unsafe_allow_html=True)
     national_data['Rolling Mean (14 Days)'] = national_data['Modal Price (Rs./Quintal)'].rolling(window=14).mean()
     national_data['Lag (14 Days)'] = national_data['Modal Price (Rs./Quintal)'].shift(14)
-
-    # Remove time from 'Reported Date' column
     national_data['Reported Date'] = national_data['Reported Date'].dt.date
-
-    # Sort by 'Reported Date' in descending order
     national_data = national_data.sort_values(by='Reported Date', ascending=False)
-
-    # Display the latest 14 rows
     st.dataframe(national_data.head(14).reset_index(drop=True), use_container_width=True, height=525)
+
+
 
 def fetch_and_store_data():
     # Connect to MongoDB Atlas
@@ -1286,7 +1280,7 @@ def fetch_and_store_data():
                     rows.append(cells)
 
             df = pd.DataFrame(rows, columns=headers)
-
+            df = df[df['Variety']=="White"]
             # Process the DataFrame
             df = df[["Reported Date", "Modal Price (Rs./Quintal)", "Arrivals (Tonnes)", "State Name", "Market Name"]]
             df["Reported Date"] = pd.to_datetime(df["Reported Date"], format='%d %b %Y', errors='coerce')
@@ -1313,6 +1307,8 @@ def fetch_and_store_data():
 
     return None
 
+# MongoDB connection
+mongo_uri = st.secrets["MONGO_URI"]
 if not mongo_uri:
     st.error("MongoDB URI is not set!")
     st.stop()
@@ -1324,7 +1320,6 @@ else:
     best_params_collection = db["BestParams"]
     impExp = db["impExp"]
     users_collection = db["user"]
-
 def get_dataframe_from_collection(collection):
     # Fetch all documents from the collection
     data = list(collection.find())
@@ -1343,6 +1338,7 @@ def authenticate_user(username, password):
     if user and check_password_hash(user['password'], password):
         return True
     return False
+
 # CSS for responsive and professional design
 st.markdown("""
     <style>
@@ -1425,17 +1421,14 @@ if st.session_state.authenticated:
         fetch_and_store_data()
     # Top-level radio buttons for switching views
     view_mode = st.radio("", ["Statistics", "Plots", "Predictions"], horizontal=True)
-    
+
     if view_mode == "Plots":
-        # Sidebar for navigation and filtering
         st.sidebar.header("Filters")
         selected_period = st.sidebar.selectbox(
             "Select Time Period",
             ["2 Weeks", "1 Month", "3 Months", "1 Year", "5 Years"],
             index=1
         )
-
-        # Mapping selected period to days
         period_mapping = {
             "2 Weeks": 14,
             "1 Month": 30,
@@ -1444,11 +1437,7 @@ if st.session_state.authenticated:
             "5 Years": 1825
         }
         st.session_state.selected_period = period_mapping[selected_period]
-
-        # Dropdown for state selection
         selected_state = st.sidebar.selectbox("Select State", list(state_market_dict.keys()))
-
-        # Dropdown for market analysis
         market_wise = st.sidebar.checkbox("Market Wise Analysis")
         if market_wise:
             markets = state_market_dict.get(selected_state, [])
@@ -1570,30 +1559,32 @@ if st.session_state.authenticated:
 
             except Exception as e:
                 st.error(f"❌ Error fetching data: {e}")
-    
+
     elif view_mode == "Predictions":
         st.subheader("📊 Model Analysis")
         sub_option = st.radio("Select one of the following", ["India", "States", "Market"], horizontal=True)
-    
+
         if sub_option == "States":
             states = ["Karnataka", "Madhya Pradesh", "Gujarat", "Uttar Pradesh", "Telangana"]
             selected_state = st.selectbox("Select State for Model Training", states)
             filter_key = f"state_{selected_state}"  # Unique key for each state
-    
+
             if st.button("Forecast"):
                 query_filter = {"state": selected_state}
                 df = fetch_and_process_data(query_filter)
                 forecast(df, filter_key)
-    
-        if sub_option == "Market":
-            # Define all market options combined
-            all_markets = ["Rajkot", "Neemuch", "Kalburgi", "Warangal"]
-    
-            # Use a single dropdown to select a market
-            selected_market = st.selectbox("Select Market for Model Training", all_markets)
-    
+
+        elif sub_option == "Market":
+            kharif_rabi_option = st.radio("Select one of the following", ["Kharif", "Rabi"], horizontal=True)
+
+            # Define market options based on Kharif/Rabi selection
+            market_options = {
+                "Kharif": ["Rajkot", "Neemuch", "Kalburgi"],
+                "Rabi": ["Rajkot", "Warangal"]
+            }
+
+            selected_market = st.selectbox("Select Market for Model Training", market_options[kharif_rabi_option])
             filter_key = f"market_{selected_market}"  # Unique key for each market
-    
             if st.button("Forecast"):
                 query_filter = {"Market Name": selected_market}
                 df = fetch_and_process_data(query_filter)
@@ -1601,17 +1592,17 @@ if st.session_state.authenticated:
         elif sub_option == "India":
             df = collection_to_dataframe(impExp)
             if True:
-    
                 if st.button("Forecast"):
                     query_filter = {}
                     df = fetch_and_process_data(query_filter)
                     forecast(df, "India")
-    
+
     elif view_mode=="Statistics":
         document = collection.find_one()
+        print(document)
         df = get_dataframe_from_collection(collection)
+        print(df)
         display_statistics(df)
-
 else:
     with st.form("login_form"):
         st.subheader("Please log in")
