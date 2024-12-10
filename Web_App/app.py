@@ -350,7 +350,7 @@ def forecast_next_14_days(df, best_params):
 
     full_df = create_forecasting_features(full_df)
 
-    # Step 3: Split data back into original and future sets
+    # Step 2: Split data back into original and future sets
     original_df = full_df[full_df['Reported Date'] <= last_date]
     future_df = full_df[full_df['Reported Date'] > last_date]
 
@@ -361,39 +361,40 @@ def forecast_next_14_days(df, best_params):
     # Prepare the dataset for forecasting
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
-    # Step 4: Train the model with the best parameters on the full dataset
+    # Step 3: Train the model with the best parameters on the full dataset
     model = XGBRegressor(**best_params)
     model.fit(X_train, y_train)
 
-    # Step 5: Forecast for the next 14 days
+    # Step 4: Forecast for the next 14 days
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
     # Get last 14 actual values for comparison
     actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
 
-    # Predicted data (using the last 14 actual values)
-    predicted_plot_df = actual_last_14_df[['Reported Date']].copy()
-    predicted_plot_df['Modal Price (Rs./Quintal)'] = model.predict(
+    # Predicted data (for the last 14 days)
+    previous_14_predicted_df = actual_last_14_df[['Reported Date']].copy()
+    previous_14_predicted_df['Modal Price (Rs./Quintal)'] = model.predict(
         actual_last_14_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
-    predicted_plot_df['Type'] = 'Actual'
+    previous_14_predicted_df['Type'] = 'Previous Predicted'
 
     # Forecasted future data
     future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
     future_plot_df['Type'] = 'Forecasted'
 
     # Add the last actual point to the forecasted data for continuity
-    last_actual_point = predicted_plot_df.iloc[[-1]].copy()
+    last_actual_point = previous_14_predicted_df.iloc[[-1]].copy()
     last_actual_point['Type'] = 'Forecasted'
     future_plot_df = pd.concat([last_actual_point, future_plot_df])
 
     # Concatenate all relevant data for plotting
-    plot_df = pd.concat([predicted_plot_df, future_plot_df])
+    plot_df = pd.concat([previous_14_predicted_df, future_plot_df])
 
     # Plot the data using Plotly
     fig = go.Figure()
 
-    for plot_type, color, dash in [('Actual', 'blue', 'solid'), ('Forecasted', 'red', 'dash')]:
+    for plot_type, color, dash in [('Previous Predicted', 'green', 'dot'), 
+                                   ('Forecasted', 'red', 'dash')]:
         data = plot_df[plot_df['Type'] == plot_type]
         fig.add_trace(go.Scatter(
             x=data['Reported Date'],
@@ -403,8 +404,18 @@ def forecast_next_14_days(df, best_params):
             line=dict(color=color, dash=dash)
         ))
 
+    # Adding Actual Data
+    actual_data = actual_last_14_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
+    fig.add_trace(go.Scatter(
+        x=actual_data['Reported Date'],
+        y=actual_data['Modal Price (Rs./Quintal)'],
+        mode='lines',
+        name="Actual Data",
+        line=dict(color='blue', dash='solid')
+    ))
+
     fig.update_layout(
-        title="Actual vs Forecasted Modal Price (Rs./Quintal)",
+        title="Actual vs Previous Predicted vs Forecasted Modal Price (Rs./Quintal)",
         xaxis_title="Date",
         yaxis_title="Modal Price (Rs./Quintal)",
         template="plotly_white"
