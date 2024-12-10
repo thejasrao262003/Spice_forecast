@@ -369,31 +369,24 @@ def forecast_next_14_days(df, best_params):
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
-    # Get last 14 actual values for comparison
-    actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
-
-    # Predicted data (for the last 14 days)
-    previous_14_predicted_df = actual_last_14_df[['Reported Date']].copy()
-    previous_14_predicted_df['Modal Price (Rs./Quintal)'] = model.predict(
-        actual_last_14_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
-    previous_14_predicted_df['Type'] = 'Previous Predicted'
-
-    # Forecasted future data
-    future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
-    future_plot_df['Type'] = 'Forecasted'
+    # Get the last 14 days of actual data
+    actual_last_14_df = original_df.iloc[-14:][['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
 
     # Add the last actual point to the forecasted data for continuity
-    last_actual_point = previous_14_predicted_df.iloc[[-1]].copy()
-    last_actual_point['Type'] = 'Forecasted'
-    future_plot_df = pd.concat([last_actual_point, future_plot_df])
+    last_actual_point = actual_last_14_df.iloc[[-1]].copy()
+    future_plot_df = pd.concat([last_actual_point, future_df[['Reported Date', 'Modal Price (Rs./Quintal)']]])
 
-    # Concatenate all relevant data for plotting
-    plot_df = pd.concat([previous_14_predicted_df, future_plot_df])
+    # Add a type column for plotting
+    actual_last_14_df['Type'] = 'Actual'
+    future_plot_df['Type'] = 'Forecasted'
+
+    # Concatenate the data for plotting
+    plot_df = pd.concat([actual_last_14_df, future_plot_df])
 
     # Plot the data using Plotly
     fig = go.Figure()
 
-    for plot_type, color, dash in [('Previous Predicted', 'green', 'dot'), 
+    for plot_type, color, dash in [('Actual', 'blue', 'solid'),
                                    ('Forecasted', 'red', 'dash')]:
         data = plot_df[plot_df['Type'] == plot_type]
         fig.add_trace(go.Scatter(
@@ -404,18 +397,8 @@ def forecast_next_14_days(df, best_params):
             line=dict(color=color, dash=dash)
         ))
 
-    # Adding Actual Data
-    actual_data = actual_last_14_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
-    fig.add_trace(go.Scatter(
-        x=actual_data['Reported Date'],
-        y=actual_data['Modal Price (Rs./Quintal)'],
-        mode='lines',
-        name="Actual Data",
-        line=dict(color='blue', dash='solid')
-    ))
-
     fig.update_layout(
-        title="Actual vs Previous Predicted vs Forecasted Modal Price (Rs./Quintal)",
+        title="Actual vs Forecasted Modal Price (Rs./Quintal)",
         xaxis_title="Date",
         yaxis_title="Modal Price (Rs./Quintal)",
         template="plotly_white"
