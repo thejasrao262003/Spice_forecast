@@ -369,26 +369,31 @@ def forecast_next_14_days(df, best_params):
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
+    # Get last 14 actual values for comparison
+    actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
+
+    # Predicted data (for the last 14 days)
+    previous_14_predicted_df = actual_last_14_df[['Reported Date']].copy()
+    previous_14_predicted_df['Modal Price (Rs./Quintal)'] = model.predict(
+        actual_last_14_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
+    previous_14_predicted_df['Type'] = 'Previous Predicted'
+
     # Forecasted future data
     future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
     future_plot_df['Type'] = 'Forecasted'
 
     # Add the last actual point to the forecasted data for continuity
-    last_actual_point = original_df.iloc[[-1]][['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
-    last_actual_point['Type'] = 'Actual'
+    last_actual_point = previous_14_predicted_df.iloc[[-1]].copy()
+    last_actual_point['Type'] = 'Forecasted'
     future_plot_df = pd.concat([last_actual_point, future_plot_df])
 
-    # Actual data for the training period
-    actual_data = original_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
-    actual_data['Type'] = 'Actual'
-
     # Concatenate all relevant data for plotting
-    plot_df = pd.concat([actual_data, future_plot_df])
+    plot_df = pd.concat([previous_14_predicted_df, future_plot_df])
 
     # Plot the data using Plotly
     fig = go.Figure()
 
-    for plot_type, color, dash in [('Actual', 'blue', 'solid'), 
+    for plot_type, color, dash in [('Previous Predicted', 'green', 'dot'), 
                                    ('Forecasted', 'red', 'dash')]:
         data = plot_df[plot_df['Type'] == plot_type]
         fig.add_trace(go.Scatter(
@@ -399,8 +404,18 @@ def forecast_next_14_days(df, best_params):
             line=dict(color=color, dash=dash)
         ))
 
+    # Adding Actual Data
+    actual_data = actual_last_14_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
+    fig.add_trace(go.Scatter(
+        x=actual_data['Reported Date'],
+        y=actual_data['Modal Price (Rs./Quintal)'],
+        mode='lines',
+        name="Actual Data",
+        line=dict(color='blue', dash='solid')
+    ))
+
     fig.update_layout(
-        title="Actual vs Forecasted Modal Price (Rs./Quintal)",
+        title="Actual vs Previous Predicted vs Forecasted Modal Price (Rs./Quintal)",
         xaxis_title="Date",
         yaxis_title="Modal Price (Rs./Quintal)",
         template="plotly_white"
@@ -409,7 +424,6 @@ def forecast_next_14_days(df, best_params):
     st.plotly_chart(fig, use_container_width=True)
 
     st.success("Forecasting for the next 14 days successfully completed!")
-
 
 def fetch_and_process_data(query_filter):
     try:
@@ -1625,9 +1639,9 @@ else:
 
         if login_button:
             if authenticate_user(username, password):
-                st.session_state.authenticated = True
-                st.session_state['username'] = username
+                st.session_state.authenticated = True  # Set the authentication state to True
+                st.session_state['username'] = username  # Store username in session state
                 st.write("Login successful!")
-                st.rerun()
+                st.rerun()  # Page will automatically rerun to show the protected content
             else:
                 st.error("Invalid username or password")
