@@ -136,6 +136,7 @@ state_market_dict = {
         "Warangal"
     ]
 }
+@st.cache_data
 def create_forecasting_features(df):
     df = df.copy()
     if not isinstance(df.index, pd.DatetimeIndex):
@@ -192,8 +193,7 @@ def create_forecasting_features(df):
     # Reset the index to include 'Reported Date' in the output
     return df.reset_index()
 
-
-
+@st.cache_data
 def preprocess_data(df):
     # Retain only 'Reported Date' and 'Modal Price (Rs./Quintal)' columns
     df = df[['Reported Date', 'Modal Price (Rs./Quintal)']]
@@ -213,7 +213,8 @@ def preprocess_data(df):
         df['Modal Price (Rs./Quintal)'].fillna(method='ffill').fillna(method='bfill')
     )
     return df
-
+    
+@st.cache_data
 def train_and_evaluate(df):
     import streamlit as st
 
@@ -349,8 +350,8 @@ def optimize_data_types(df):
     return df
 
 
-
-def forecast_next_14_days(df, best_params):
+@st.cache_data
+def forecast_next_14_days(df, _best_params):
     df = optimize_data_types(df)
     last_date = df['Reported Date'].max()
     future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=14)
@@ -371,7 +372,7 @@ def forecast_next_14_days(df, best_params):
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
     # Step 4: Train the model with the best parameters on the full dataset
-    model = XGBRegressor(**best_params)
+    model = XGBRegressor(**_best_params)
     model.fit(X_train, y_train)
 
     # Step 5: Forecast for the next 14 days
