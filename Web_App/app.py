@@ -332,15 +332,29 @@ def train_and_evaluate(df):
     # Return best parameters
     return best_params
 
+import pandas as pd
+
+def optimize_data_types(df):
+    # Optimize numerical data by downcasting
+    float_cols = df.select_dtypes(include=['float']).columns
+    df[float_cols] = df[float_cols].apply(pd.to_numeric, downcast='float')
+    
+    int_cols = df.select_dtypes(include=['int']).columns
+    df[int_cols] = df[int_cols].apply(pd.to_numeric, downcast='integer')
+    
+    # Convert dates if they're not already in datetime format
+    if df['Reported Date'].dtype == 'object':
+        df['Reported Date'] = pd.to_datetime(df['Reported Date'])
+    
+    return df
+
 
 
 def forecast_next_14_days(df, best_params):
-    # Step 1: Create the future dataframe for the next 14 days
+    df = optimize_data_types(df)
     last_date = df['Reported Date'].max()
     future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=14)
     future_df = pd.DataFrame({'Reported Date': future_dates})
-
-    # Concatenate future_df with the original dataframe
     full_df = pd.concat([df, future_df], ignore_index=True)
 
     full_df = create_forecasting_features(full_df)
