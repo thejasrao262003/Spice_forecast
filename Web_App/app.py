@@ -1268,12 +1268,23 @@ def display_statistics(df):
 
 
 
+import requests
+import pandas as pd
+from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
+from pymongo import MongoClient
+
 def fetch_and_store_data():
+    client = MongoClient("your_connection_string")  # Use your actual MongoDB connection string
+    db = client['your_database_name']
+    collection = db['your_collection_name']
+
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
     if latest_doc and "Reported Date" in latest_doc:
         latest_date = latest_doc["Reported Date"]
     else:
         latest_date = None
+
     if latest_date:
         from_date = (latest_date + timedelta(days=1)).strftime('%d %b %Y')
     else:
@@ -1282,7 +1293,7 @@ def fetch_and_store_data():
 
     to_date = (datetime.now() - timedelta(days=1)).strftime('%d %b %Y')
 
-    # Fetch data from the website
+    # Build the URL to be requested
     base_url = "https://agmarknet.gov.in/SearchCmmMkt.aspx"
     params = {
         "Tx_Commodity": "11",
@@ -1299,10 +1310,16 @@ def fetch_and_store_data():
         "Tx_DistrictHead": "--Select--",
         "Tx_MarketHead": "--Select--"
     }
-    proxies = {
-        'http': 'http://scraperapi:bbbbde6b56c0fde1e2a61c914eb22d14@proxy-server.scraperapi.com:8001'
+    
+    full_url = f"{base_url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+    api_url = "https://api.scraperapi.com"
+    api_key = "bbbbde6b56c0fde1e2a61c914eb22d14"
+    scraperapi_params = {
+        'api_key': api_key,
+        'url': full_url
     }
-    response = requests.get(base_url, params=params, proxies=proxies)
+
+    response = requests.get(api_url, params=scraperapi_params)
 
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -1319,31 +1336,27 @@ def fetch_and_store_data():
 
             df = pd.DataFrame(rows, columns=headers)
             df = df[df['Variety']=="White"]
-            # Process the DataFrame
-            df = df[["Reported Date", "Modal Price (Rs./Quintal)", "Arrivals (Tonnes)", "State Name", "Market Name"]]
             df["Reported Date"] = pd.to_datetime(df["Reported Date"], format='%d %b %Y', errors='coerce')
-            df = df.dropna(subset=["Reported Date"])
-            df = df.sort_values(by="Reported Date")
-            df = df.rename(columns={"State Name": "state"})
+            df.dropna(subset=["Reported Date"], inplace=True)
+            df.sort_values(by="Reported Date", inplace=True)
+            df.rename(columns={"State Name": "state"}, inplace=True)
 
-            # Type casting for the columns to ensure correct types
-            df["Reported Date"] = pd.to_datetime(df["Reported Date"], errors='coerce')  # Ensure datetime format
+            # Type casting for the columns
             df["Modal Price (Rs./Quintal)"] = pd.to_numeric(df["Modal Price (Rs./Quintal)"], errors='coerce').astype("int64")
             df["Arrivals (Tonnes)"] = pd.to_numeric(df["Arrivals (Tonnes)"], errors='coerce').astype("float64")
             df["state"] = df["state"].astype("string")
             df["Market Name"] = df["Market Name"].astype("string")
 
-            # Reorder columns
-            df = df[["Reported Date", "Market Name", "Arrivals (Tonnes)", "Modal Price (Rs./Quintal)", "state"]]
             for index, row in df.iterrows():
                 document = row.to_dict()
                 collection.insert_one(document)
 
             return df
-    else:
-        st.write(response.status_code)
 
-    return None
+    else:
+        print(f"Failed to fetch data with status code: {response.status_code}")
+        return None
+
 
     
 def get_dataframe_from_collection(collection):
