@@ -17,25 +17,6 @@ import json
 from itertools import product
 from tqdm import tqdm
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-
-def selenium_fetch(url):
-    options = Options()
-    options.headless = True  # Run in headless mode.
-    options.add_argument("--window-size=1920,1200")
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-
-    with webdriver.Chrome(options=options, service=Service(ChromeDriverManager().install())) as driver:
-        driver.get(url)
-        content = driver.page_source
-        return content
-
-content = selenium_fetch("https://agmarknet.gov.in/SearchCmmMkt.aspx")
-st.write(content)
 
 mongo_uri = st.secrets["MONGO_URI"]
 if not mongo_uri:
@@ -1288,24 +1269,20 @@ def display_statistics(df):
 
 
 def fetch_and_store_data():
-    # Connect to MongoDB Atlas
-
-    st.write("Checking the latest available data...")
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
-
     if latest_doc and "Reported Date" in latest_doc:
         latest_date = latest_doc["Reported Date"]
     else:
         latest_date = None
-
     if latest_date:
         from_date = (latest_date + timedelta(days=1)).strftime('%d %b %Y')
     else:
-        from_date = "01 Jan 2000"  # If no latest date, set a default from_date
+        # If no latest date, set a default from_date
+        from_date = "01 Jan 2000"
 
     to_date = (datetime.now() - timedelta(days=1)).strftime('%d %b %Y')
 
-    # URL and parameters for the data request
+    # Fetch data from the website
     base_url = "https://agmarknet.gov.in/SearchCmmMkt.aspx"
     params = {
         "Tx_Commodity": "11",
@@ -1317,59 +1294,55 @@ def fetch_and_store_data():
         "Fr_Date": from_date,
         "To_Date": to_date,
         "Tx_Trend": "2",
-        "Tx_CommodityHead": "Sesamum(Sesame, Gingelly, Til)",
+        "Tx_CommodityHead": "Sesamum(Sesame,Gingelly,Til)",
         "Tx_StateHead": "--Select--",
         "Tx_DistrictHead": "--Select--",
         "Tx_MarketHead": "--Select--"
     }
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://agmarknet.gov.in/'
+    proxies = {
+        'http': 'http://scraperapi:bbbbde6b56c0fde1e2a61c914eb22d14@proxy-server.scraperapi.com:8001'
     }
+    response = requests.get(base_url, params=params, proxies=proxies)
 
-    with requests.Session() as session:
-        session.headers.update(headers)
-        response = session.get(base_url, params=params)
-        st.write(f"HTTP status code: {response.status_code}")
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.content, 'html.parser')
+        table = soup.find("table", {"class": "tableagmark_new"})
 
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            table = soup.find("table", {"class": "tableagmark_new"})
+        if table:
+            headers = [th.get_text(strip=True) for th in table.find_all("th")]
+            rows = []
 
-            if table:
-                headers = [th.get_text(strip=True) for th in table.find_all("th")]
-                rows = []
+            for row in table.find_all("tr")[1:]:
+                cells = [td.get_text(strip=True) for td in row.find_all("td")]
+                if cells:
+                    rows.append(cells)
 
-                for row in table.find_all("tr")[1:]:
-                    cells = [td.get_text(strip=True) for td in row.find_all("td")]
-                    if cells:
-                        rows.append(cells)
+            df = pd.DataFrame(rows, columns=headers)
+            df = df[df['Variety']=="White"]
+            # Process the DataFrame
+            df = df[["Reported Date", "Modal Price (Rs./Quintal)", "Arrivals (Tonnes)", "State Name", "Market Name"]]
+            df["Reported Date"] = pd.to_datetime(df["Reported Date"], format='%d %b %Y', errors='coerce')
+            df = df.dropna(subset=["Reported Date"])
+            df = df.sort_values(by="Reported Date")
+            df = df.rename(columns={"State Name": "state"})
 
-                df = pd.DataFrame(rows, columns=headers)
-                df = df[df['Variety']=="White"]  # Optional filtering
-                df["Reported Date"] = pd.to_datetime(df["Reported Date"], format='%d %b %Y', errors='coerce')
-                df.dropna(subset=["Reported Date"], inplace=True)
-                df.sort_values(by="Reported Date", inplace=True)
-                df.rename(columns={"State Name": "state"}, inplace=True)
+            # Type casting for the columns to ensure correct types
+            df["Reported Date"] = pd.to_datetime(df["Reported Date"], errors='coerce')  # Ensure datetime format
+            df["Modal Price (Rs./Quintal)"] = pd.to_numeric(df["Modal Price (Rs./Quintal)"], errors='coerce').astype("int64")
+            df["Arrivals (Tonnes)"] = pd.to_numeric(df["Arrivals (Tonnes)"], errors='coerce').astype("float64")
+            df["state"] = df["state"].astype("string")
+            df["Market Name"] = df["Market Name"].astype("string")
 
-                # Type casting for the columns to ensure correct types
-                df["Modal Price (Rs./Quintal)"] = pd.to_numeric(df["Modal Price (Rs./Quintal)"], errors='coerce').astype("int64")
-                df["Arrivals (Tonnes)"] = pd.to_numeric(df["Arrivals (Tonnes)"], errors='coerce').astype("float64")
-                df["state"] = df["state"].astype("string")
-                df["Market Name"] = df["Market Name"].astype("string")
+            # Reorder columns
+            df = df[["Reported Date", "Market Name", "Arrivals (Tonnes)", "Modal Price (Rs./Quintal)", "state"]]
+            for index, row in df.iterrows():
+                document = row.to_dict()
+                collection.insert_one(document)
 
-                # Store data in MongoDB
-                for index, row in df.iterrows():
-                    document = row.to_dict()
-                    collection.insert_one(document)
-
-                return df
-        else:
-            st.error("Failed to fetch data from the website. HTTP Status: " + str(response.status_code))
+            return df
 
     return None
+
     
 def get_dataframe_from_collection(collection):
     # Fetch all documents from the collection
