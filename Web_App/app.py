@@ -1302,7 +1302,7 @@ def fetch_and_store_data():
     }
 
     response = requests.get(base_url, params=params)
-
+    print(response)
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
         table = soup.find("table", {"class": "tableagmark_new"})
