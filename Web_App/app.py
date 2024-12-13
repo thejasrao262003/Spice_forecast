@@ -149,7 +149,6 @@ state_market_dict = {
         "Warangal"
     ]
 }
-
 def create_forecasting_features(df):
     df = df.copy()
     if not isinstance(df.index, pd.DatetimeIndex):
@@ -195,6 +194,7 @@ def create_forecasting_features(df):
     return df.reset_index()
 
 
+
 def preprocess_data(df):
     # Retain only 'Reported Date' and 'Modal Price (Rs./Quintal)' columns
     df = df[['Reported Date', 'Modal Price (Rs./Quintal)']]
@@ -214,7 +214,7 @@ def preprocess_data(df):
         df['Modal Price (Rs./Quintal)'].fillna(method='ffill').fillna(method='bfill')
     )
     return df
-    
+
 def train_and_evaluate(df):
     import streamlit as st
 
@@ -333,54 +333,35 @@ def train_and_evaluate(df):
     # Return best parameters
     return best_params
 
-import pandas as pd
 
-def optimize_data_types(df):
-    # Optimize numerical data by downcasting
-    float_cols = df.select_dtypes(include=['float']).columns
-    df[float_cols] = df[float_cols].apply(pd.to_numeric, downcast='float')
-    
-    int_cols = df.select_dtypes(include=['int']).columns
-    df[int_cols] = df[int_cols].apply(pd.to_numeric, downcast='integer')
-    
-    # Convert dates if they're not already in datetime format
-    if df['Reported Date'].dtype == 'object':
-        df['Reported Date'] = pd.to_datetime(df['Reported Date'])
-    
-    return df
 
 def forecast_next_14_days(df, _best_params):
-    st.write("Optimizing data types...")
-    df = optimize_data_types(df)  # Assuming function 'optimize_data_types' is defined elsewhere
-
-    st.write("Determining the last reported date...")
+    # Step 1: Create the future dataframe for the next 14 days
     last_date = df['Reported Date'].max()
     future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=14)
     future_df = pd.DataFrame({'Reported Date': future_dates})
 
-    st.write("Combining old and future data frames for feature creation...")
+    # Concatenate future_df with the original dataframe
     full_df = pd.concat([df, future_df], ignore_index=True)
 
-    st.write("Creating forecasting features...")
-    full_df = create_forecasting_features(full_df)  # Assuming function 'create_forecasting_features' is defined
+    full_df = create_forecasting_features(full_df)
 
-    # Split data back into original and future sets
+    # Step 3: Split data back into original and future sets
     original_df = full_df[full_df['Reported Date'] <= last_date]
     future_df = full_df[full_df['Reported Date'] > last_date]
 
-    st.write("Preparing training data...")
+    # Prepare the training dataset
     X_train = original_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
     y_train = original_df['Modal Price (Rs./Quintal)']
 
-    st.write("Preparing data for future forecasting...")
+    # Prepare the dataset for forecasting
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
-    st.write("Training the model...")
-    _best_params['tree_method'] = 'hist'
+    # Step 4: Train the model with the best parameters on the full dataset
     model = XGBRegressor(**_best_params)
     model.fit(X_train, y_train)
 
-    st.write("Making predictions for the next 14 days...")
+    # Step 5: Forecast for the next 14 days
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
@@ -405,7 +386,7 @@ def forecast_next_14_days(df, _best_params):
     # Concatenate all relevant data for plotting
     plot_df = pd.concat([predicted_plot_df, future_plot_df])
 
-    st.write("Plotting the results...")
+    # Plot the data using Plotly
     fig = go.Figure()
 
     for plot_type, color, dash in [('Actual', 'blue', 'solid'), ('Forecasted', 'red', 'dash')]:
@@ -428,6 +409,7 @@ def forecast_next_14_days(df, _best_params):
     st.plotly_chart(fig, use_container_width=True)
 
     st.success("Forecasting for the next 14 days successfully completed!")
+
 
 
 def fetch_and_process_data(query_filter):
@@ -1204,13 +1186,12 @@ def display_statistics(df):
     monthly_avg['Month'] = monthly_avg['Month'].apply(lambda x: calendar.month_name[x])
     monthly_avg.columns = ['Month', 'Average Modal Price (Rs./Quintal)', 'Average Arrivals (Tonnes)']
     st.write(monthly_avg)
-
     st.subheader("📆 Yearly Averages")
     st.markdown("<p class='highlight'>Yearly averages provide insights into long-term trends in pricing and arrivals. By examining these values, you can detect overall growth, stability, or volatility in the market.</p>", unsafe_allow_html=True)
     national_data['Year'] = national_data['Reported Date'].dt.year
     yearly_avg_price = national_data.groupby('Year')['Modal Price (Rs./Quintal)'].mean().reset_index()
-    yearly_avg_arrivals = national_data.groupby('Year')['Arrivals (Tonnes)'].mean().reset_index()
-    yearly_avg = pd.merge(yearly_avg_price, yearly_avg_arrivals, on='Year')
+    yearly_sum_arrivals = national_data.groupby('Year')['Arrivals (Tonnes)'].sum().reset_index()
+    yearly_avg = pd.merge(yearly_avg_price, yearly_sum_arrivals, on='Year')
     yearly_avg['Year'] = yearly_avg['Year'].apply(lambda x: f"{int(x)}")
     yearly_avg.columns = ['Year', 'Average Modal Price (Rs./Quintal)', 'Average Arrivals (Tonnes)']
     st.write(yearly_avg)
@@ -1245,9 +1226,6 @@ def display_statistics(df):
     national_data['Reported Date'] = national_data['Reported Date'].dt.date
     national_data = national_data.sort_values(by='Reported Date', ascending=False)
     st.dataframe(national_data.head(14).reset_index(drop=True), use_container_width=True, height=525)
-
-
-
 
 def fetch_and_store_data():
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
