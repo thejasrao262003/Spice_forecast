@@ -137,6 +137,9 @@ state_market_dict = {
     ]
 }
 
+import pandas as pd
+import numpy as np
+
 def create_forecasting_features(df):
     df = df.copy()
     if not isinstance(df.index, pd.DatetimeIndex):
@@ -155,24 +158,28 @@ def create_forecasting_features(df):
     df['weekofyear'] = df.index.isocalendar().week
 
     # Lag features
-    df['lag14'] = (df.index - pd.Timedelta(days=14)).map(target_map)
+    df['lag'] = (df.index - pd.Timedelta(days=14)).map(target_map)
     df['lag28'] = (df.index - pd.Timedelta(days=28)).map(target_map)
     df['lag56'] = (df.index - pd.Timedelta(days=56)).map(target_map)
     df['lag_3months'] = (df.index - pd.DateOffset(months=3)).map(target_map)
     df['lag_6months'] = (df.index - pd.DateOffset(months=6)).map(target_map)
-    for window in [7, 14, 28]:  # Weekly, bi-weekly, and monthly windows
+
+    # Rolling features
+    for window in [28, 42, 56]:  # Monthly, 6-week, and 8-week windows
         df[f'rolling_mean_{window}'] = df['Modal Price (Rs./Quintal)'].rolling(window=window, min_periods=1).mean()
         df[f'rolling_std_{window}'] = df['Modal Price (Rs./Quintal)'].rolling(window=window, min_periods=1).std()
 
     # Exponential moving averages for smoothing recent trends
-    df['ema7'] = df['Modal Price (Rs./Quintal)'].ewm(span=7, adjust=False).mean()
-    df['ema14'] = df['Modal Price (Rs./Quintal)'].ewm(span=14, adjust=False).mean()
+    df['ema28'] = df['Modal Price (Rs./Quintal)'].ewm(span=28, adjust=False).mean()
+    df['ema42'] = df['Modal Price (Rs./Quintal)'].ewm(span=42, adjust=False).mean()
+    df['ema56'] = df['Modal Price (Rs./Quintal)'].ewm(span=56, adjust=False).mean()
+
     # Seasonal averages (historical values based on seasonality)
     df['monthly_avg'] = df.groupby('month')['Modal Price (Rs./Quintal)'].transform('mean')
     df['weekly_avg'] = df.groupby('weekofyear')['Modal Price (Rs./Quintal)'].transform('mean')
     df['dayofweek_avg'] = df.groupby('dayofweek')['Modal Price (Rs./Quintal)'].transform('mean')
 
-    # Fourier terms for periodicity (optional for strong seasonality)
+    # Fourier terms for periodicity
     df['fourier_sin_365'] = np.sin(2 * np.pi * df.index.dayofyear / 365)
     df['fourier_cos_365'] = np.cos(2 * np.pi * df.index.dayofyear / 365)
 
@@ -186,11 +193,13 @@ def create_forecasting_features(df):
 
     # Long-term trends
     df['yearly_avg'] = df.groupby('year')['Modal Price (Rs./Quintal)'].transform('mean')
-
-    # Trend Feature
     df['cumulative_mean'] = df['Modal Price (Rs./Quintal)'].expanding().mean()
 
-    # Reset the index to include 'Reported Date' in the output
+    # Calculate correlations and print
+    correlation = df.corr()['Modal Price (Rs./Quintal)'].sort_values()
+    print("Correlation with Modal Price:\n", correlation)
+    to_remove = correlation[correlation.abs() < 0.2].index.to_list()
+    df.drop(columns=to_remove, inplace=True)
     return df.reset_index()
 
 def preprocess_data(df):
