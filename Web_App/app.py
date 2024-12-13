@@ -8,6 +8,7 @@ from xgboost import XGBRegressor
 from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
+from xgboost_ray import RayDMatrix, RayXGBRegressor
 import calendar
 import certifi
 import requests
