@@ -1340,6 +1340,8 @@ def fetch_and_store_data():
                 collection.insert_one(document)
 
             return df
+    else:
+        st.write(response.status_code)
 
     return None
 
