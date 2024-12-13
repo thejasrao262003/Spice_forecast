@@ -1270,6 +1270,7 @@ def display_statistics(df):
 
 def fetch_and_store_data():
     # Connect to MongoDB Atlas
+    print("Hello")
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
     if latest_doc and "Reported Date" in latest_doc:
         latest_date = latest_doc["Reported Date"]
@@ -1339,6 +1340,8 @@ def fetch_and_store_data():
                 collection.insert_one(document)
 
             return df
+    else:
+        print("No response")
 
     return None
 
