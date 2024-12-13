@@ -383,7 +383,7 @@ def forecast_next_14_days(df, _best_params):
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
     st.write("Training the model...")
-    _best_params['tree_method'] = 'gpu_hist'
+    _best_params['tree_method'] = 'hist'
     model = XGBRegressor(**_best_params)
     model.fit(X_train, y_train)
 
