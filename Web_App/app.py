@@ -8,7 +8,6 @@ from xgboost import XGBRegressor
 from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
-from xgboost_ray import RayDMatrix, RayXGBRegressor
 import calendar
 import certifi
 import requests
@@ -358,12 +357,8 @@ def optimize_data_types(df):
     return df
 
 def forecast_next_14_days(df, _best_params):
-    if not ray.is_initialized():
-        st.write("Initializing Ray...")
-        ray.init()  # Initialize Ray; consider specifying resources depending on your setup
-
     st.write("Optimizing data types...")
-    df = optimize_data_types(df)  # Ensure this function is correctly defined for your data
+    df = optimize_data_types(df)  # Assuming function 'optimize_data_types' is defined elsewhere
 
     st.write("Determining the last reported date...")
     last_date = df['Reported Date'].max()
@@ -374,32 +369,47 @@ def forecast_next_14_days(df, _best_params):
     full_df = pd.concat([df, future_df], ignore_index=True)
 
     st.write("Creating forecasting features...")
-    full_df = create_forecasting_features(full_df)  # Ensure this function is correctly defined for your features
+    full_df = create_forecasting_features(full_df)  # Assuming function 'create_forecasting_features' is defined
 
     # Split data back into original and future sets
     original_df = full_df[full_df['Reported Date'] <= last_date]
     future_df = full_df[full_df['Reported Date'] > last_date]
 
-    # Prepare the training dataset
-    X_train = RayDMatrix(original_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'),
-                         label=original_df['Modal Price (Rs./Quintal)'])
-    # Prepare the dataset for forecasting
-    X_future = RayDMatrix(future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
+    st.write("Preparing training data...")
+    X_train = original_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
+    y_train = original_df['Modal Price (Rs./Quintal)']
+
+    st.write("Preparing data for future forecasting...")
+    X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
     st.write("Training the model...")
-    model = RayXGBRegressor(**_best_params)
-    model.fit(X_train)
+    _best_params['tree_method'] = 'hist'
+    model = XGBRegressor(**_best_params)
+    model.fit(X_train, y_train)
 
     st.write("Making predictions for the next 14 days...")
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
-    # Concatenate predicted and future data for plotting
+    # Get last 14 actual values for comparison
     actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
-    predicted_plot_df = actual_last_14_df[['Reported Date', 'Modal Price (Rs./Quintal)']]
+
+    # Predicted data (using the last 14 actual values)
+    predicted_plot_df = actual_last_14_df[['Reported Date']].copy()
+    predicted_plot_df['Modal Price (Rs./Quintal)'] = model.predict(
+        actual_last_14_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
     predicted_plot_df['Type'] = 'Actual'
-    future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']]
+
+    # Forecasted future data
+    future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
     future_plot_df['Type'] = 'Forecasted'
+
+    # Add the last actual point to the forecasted data for continuity
+    last_actual_point = predicted_plot_df.iloc[[-1]].copy()
+    last_actual_point['Type'] = 'Forecasted'
+    future_plot_df = pd.concat([last_actual_point, future_plot_df])
+
+    # Concatenate all relevant data for plotting
     plot_df = pd.concat([predicted_plot_df, future_plot_df])
 
     st.write("Plotting the results...")
@@ -425,14 +435,6 @@ def forecast_next_14_days(df, _best_params):
     st.plotly_chart(fig, use_container_width=True)
 
     st.success("Forecasting for the next 14 days successfully completed!")
-
-    # Shutdown Ray if no longer needed
-    if ray.is_initialized():
-        ray.shutdown()
-
-# This function assumes that Streamlit is running and that the other necessary functions and data manipulations are correctly defined.
-
-
 
 
 def fetch_and_process_data(query_filter):
