@@ -12,5 +12,5 @@ beautifulsoup4
 tqdm
 statsmodels
 werkzeug
-xgboost_ray
-ray
+selenium
+webdriver-manager
