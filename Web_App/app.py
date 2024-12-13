@@ -1257,8 +1257,6 @@ def display_statistics(df):
 
 def fetch_and_store_data():
     # Connect to MongoDB Atlas
-    db = client["AgriPredict"]
-    collection = db["WhiteSesame"]
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
     if latest_doc and "Reported Date" in latest_doc:
         latest_date = latest_doc["Reported Date"]
@@ -1323,8 +1321,6 @@ def fetch_and_store_data():
 
             # Reorder columns
             df = df[["Reported Date", "Market Name", "Arrivals (Tonnes)", "Modal Price (Rs./Quintal)", "state"]]
-
-            # Write DataFrame back to MongoDB
             for index, row in df.iterrows():
                 document = row.to_dict()
                 collection.insert_one(document)
