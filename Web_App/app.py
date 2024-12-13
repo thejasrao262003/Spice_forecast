@@ -1268,17 +1268,8 @@ def display_statistics(df):
 
 
 
-import requests
-import pandas as pd
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
-from pymongo import MongoClient
 
 def fetch_and_store_data():
-    client = MongoClient("your_connection_string")  # Use your actual MongoDB connection string
-    db = client['your_database_name']
-    collection = db['your_collection_name']
-
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
     if latest_doc and "Reported Date" in latest_doc:
         latest_date = latest_doc["Reported Date"]
