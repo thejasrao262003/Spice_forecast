@@ -18,6 +18,19 @@ from itertools import product
 from tqdm import tqdm
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
+mongo_uri = st.secrets["MONGO_URI"]
+if not mongo_uri:
+    st.error("MongoDB URI is not set!")
+    st.stop()
+else:
+    # Connect to MongoDB with SSL certificate validation
+    client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
+    db = client["AgriPredict"]
+    collection = db["WhiteSesame"]
+    best_params_collection = db["BestParams"]
+    impExp = db["impExp"]
+    users_collection = db["user"]
+
 state_market_dict = {
     "Karnataka": [
         "Kalburgi",
@@ -1329,19 +1342,6 @@ def fetch_and_store_data():
 
     return None
 
-# MongoDB connection
-mongo_uri = st.secrets["MONGO_URI"]
-if not mongo_uri:
-    st.error("MongoDB URI is not set!")
-    st.stop()
-else:
-    # Connect to MongoDB with SSL certificate validation
-    client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-    db = client["AgriPredict"]
-    collection = db["WhiteSesame"]
-    best_params_collection = db["BestParams"]
-    impExp = db["impExp"]
-    users_collection = db["user"]
 def get_dataframe_from_collection(collection):
     # Fetch all documents from the collection
     data = list(collection.find())
