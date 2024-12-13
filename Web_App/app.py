@@ -1270,7 +1270,7 @@ def display_statistics(df):
 
 def fetch_and_store_data():
     # Connect to MongoDB Atlas
-    print("Hello")
+    st.write("Hello")
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
     if latest_doc and "Reported Date" in latest_doc:
         latest_date = latest_doc["Reported Date"]
@@ -1303,7 +1303,7 @@ def fetch_and_store_data():
     }
 
     response = requests.get(base_url, params=params)
-    print(response)
+    st.write(response)
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
         table = soup.find("table", {"class": "tableagmark_new"})
@@ -1341,7 +1341,7 @@ def fetch_and_store_data():
 
             return df
     else:
-        print("No response")
+        st.write("No response")
 
     return None
 
