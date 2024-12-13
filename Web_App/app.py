@@ -1301,9 +1301,14 @@ def fetch_and_store_data():
         "Tx_DistrictHead": "--Select--",
         "Tx_MarketHead": "--Select--"
     }
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+    }
 
-    response = requests.get(base_url, params=params)
-    st.write(response)
+    st.write("Fetching data from website...")
+    response = requests.get(base_url, params=params, headers=headers)
+    st.write(f"HTTP status code: {response.status_code}")
+
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
         table = soup.find("table", {"class": "tableagmark_new"})
