@@ -1270,14 +1270,6 @@ def display_statistics(df):
 
 def fetch_and_store_data():
     # Connect to MongoDB Atlas
-    try:
-        client = MongoClient("your_mongodb_connection_string")
-        db = client['your_database_name']
-        collection = db['your_collection_name']
-    except ConnectionFailure:
-        st.error("Failed to connect to database.")
-        return None
-
     st.write("Checking the latest available data...")
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
 
