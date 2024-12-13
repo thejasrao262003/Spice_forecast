@@ -356,11 +356,6 @@ def optimize_data_types(df):
     
     return df
 
-import pandas as pd
-from xgboost import XGBRegressor
-import plotly.graph_objects as go
-import streamlit as st
-
 def forecast_next_14_days(df, _best_params):
     st.write("Optimizing data types...")
     df = optimize_data_types(df)  # Assuming function 'optimize_data_types' is defined elsewhere
@@ -388,6 +383,7 @@ def forecast_next_14_days(df, _best_params):
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
     st.write("Training the model...")
+    _best_params['tree_method'] = 'gpu_hist'
     model = XGBRegressor(**_best_params)
     model.fit(X_train, y_train)
 
