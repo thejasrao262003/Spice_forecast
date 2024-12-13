@@ -17,6 +17,25 @@ import json
 from itertools import product
 from tqdm import tqdm
 from statsmodels.tsa.statespace.sarimax import SARIMAX
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
+def selenium_fetch(url):
+    options = Options()
+    options.headless = True  # Run in headless mode.
+    options.add_argument("--window-size=1920,1200")
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+
+    with webdriver.Chrome(options=options, service=Service(ChromeDriverManager().install())) as driver:
+        driver.get(url)
+        content = driver.page_source
+        return content
+
+content = selenium_fetch("https://agmarknet.gov.in/SearchCmmMkt.aspx")
+st.write(content)
 
 mongo_uri = st.secrets["MONGO_URI"]
 if not mongo_uri:
