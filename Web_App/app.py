@@ -356,31 +356,42 @@ def optimize_data_types(df):
     
     return df
 
+import pandas as pd
+from xgboost import XGBRegressor
+import plotly.graph_objects as go
+import streamlit as st
+
 def forecast_next_14_days(df, _best_params):
-    df = optimize_data_types(df)
+    st.write("Optimizing data types...")
+    df = optimize_data_types(df)  # Assuming function 'optimize_data_types' is defined elsewhere
+
+    st.write("Determining the last reported date...")
     last_date = df['Reported Date'].max()
     future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=14)
     future_df = pd.DataFrame({'Reported Date': future_dates})
+
+    st.write("Combining old and future data frames for feature creation...")
     full_df = pd.concat([df, future_df], ignore_index=True)
 
-    full_df = create_forecasting_features(full_df)
+    st.write("Creating forecasting features...")
+    full_df = create_forecasting_features(full_df)  # Assuming function 'create_forecasting_features' is defined
 
-    # Step 3: Split data back into original and future sets
+    # Split data back into original and future sets
     original_df = full_df[full_df['Reported Date'] <= last_date]
     future_df = full_df[full_df['Reported Date'] > last_date]
 
-    # Prepare the training dataset
+    st.write("Preparing training data...")
     X_train = original_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
     y_train = original_df['Modal Price (Rs./Quintal)']
 
-    # Prepare the dataset for forecasting
+    st.write("Preparing data for future forecasting...")
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
-    # Step 4: Train the model with the best parameters on the full dataset
+    st.write("Training the model...")
     model = XGBRegressor(**_best_params)
     model.fit(X_train, y_train)
 
-    # Step 5: Forecast for the next 14 days
+    st.write("Making predictions for the next 14 days...")
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
@@ -405,7 +416,7 @@ def forecast_next_14_days(df, _best_params):
     # Concatenate all relevant data for plotting
     plot_df = pd.concat([predicted_plot_df, future_plot_df])
 
-    # Plot the data using Plotly
+    st.write("Plotting the results...")
     fig = go.Figure()
 
     for plot_type, color, dash in [('Actual', 'blue', 'solid'), ('Forecasted', 'red', 'dash')]:
@@ -428,6 +439,9 @@ def forecast_next_14_days(df, _best_params):
     st.plotly_chart(fig, use_container_width=True)
 
     st.success("Forecasting for the next 14 days successfully completed!")
+
+# This function assumes that Streamlit is running and that the other necessary functions and data manipulations are correctly defined.
+
 
 
 
