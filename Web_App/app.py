@@ -1270,21 +1270,30 @@ def display_statistics(df):
 
 def fetch_and_store_data():
     # Connect to MongoDB Atlas
-    st.write("Hello")
+    try:
+        client = MongoClient("your_mongodb_connection_string")
+        db = client['your_database_name']
+        collection = db['your_collection_name']
+    except ConnectionFailure:
+        st.error("Failed to connect to database.")
+        return None
+
+    st.write("Checking the latest available data...")
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
+
     if latest_doc and "Reported Date" in latest_doc:
         latest_date = latest_doc["Reported Date"]
     else:
         latest_date = None
+
     if latest_date:
         from_date = (latest_date + timedelta(days=1)).strftime('%d %b %Y')
     else:
-        # If no latest date, set a default from_date
-        from_date = "01 Jan 2000"
+        from_date = "01 Jan 2000"  # If no latest date, set a default from_date
 
     to_date = (datetime.now() - timedelta(days=1)).strftime('%d %b %Y')
 
-    # Fetch data from the website
+    # URL and parameters for the data request
     base_url = "https://agmarknet.gov.in/SearchCmmMkt.aspx"
     params = {
         "Tx_Commodity": "11",
@@ -1305,48 +1314,49 @@ def fetch_and_store_data():
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
     }
 
-    st.write("Fetching data from website...")
-    response = requests.get(base_url, params=params, headers=headers)
-    st.write(f"HTTP status code: {response.status_code}")
+    with requests.Session() as session:
+        session.headers.update(headers)
+        response = session.get(base_url, params=params)
+        st.write(f"HTTP status code: {response.status_code}")
 
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html.parser')
-        table = soup.find("table", {"class": "tableagmark_new"})
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            table = soup.find("table", {"class": "tableagmark_new"})
 
-        if table:
-            headers = [th.get_text(strip=True) for th in table.find_all("th")]
-            rows = []
+            if table:
+                headers = [th.get_text(strip=True) for th in table.find_all("th")]
+                rows = []
 
-            for row in table.find_all("tr")[1:]:
-                cells = [td.get_text(strip=True) for td in row.find_all("td")]
-                if cells:
-                    rows.append(cells)
+                for row in table.find_all("tr")[1:]:
+                    cells = [td.get_text(strip=True) for td in row.find_all("td")]
+                    if cells:
+                        rows.append(cells)
 
-            df = pd.DataFrame(rows, columns=headers)
-            df = df[df['Variety']=="White"]
-            # Process the DataFrame
-            df = df[["Reported Date", "Modal Price (Rs./Quintal)", "Arrivals (Tonnes)", "State Name", "Market Name"]]
-            df["Reported Date"] = pd.to_datetime(df["Reported Date"], format='%d %b %Y', errors='coerce')
-            df = df.dropna(subset=["Reported Date"])
-            df = df.sort_values(by="Reported Date")
-            df = df.rename(columns={"State Name": "state"})
+                df = pd.DataFrame(rows, columns=headers)
+                df = df[df['Variety']=="White"]
+                # Process the DataFrame
+                df = df[["Reported Date", "Modal Price (Rs./Quintal)", "Arrivals (Tonnes)", "State Name", "Market Name"]]
+                df["Reported Date"] = pd.to_datetime(df["Reported Date"], format='%d %b %Y', errors='coerce')
+                df = df.dropna(subset=["Reported Date"])
+                df = df.sort_values(by="Reported Date")
+                df = df.rename(columns={"State Name": "state"})
 
-            # Type casting for the columns to ensure correct types
-            df["Reported Date"] = pd.to_datetime(df["Reported Date"], errors='coerce')  # Ensure datetime format
-            df["Modal Price (Rs./Quintal)"] = pd.to_numeric(df["Modal Price (Rs./Quintal)"], errors='coerce').astype("int64")
-            df["Arrivals (Tonnes)"] = pd.to_numeric(df["Arrivals (Tonnes)"], errors='coerce').astype("float64")
-            df["state"] = df["state"].astype("string")
-            df["Market Name"] = df["Market Name"].astype("string")
+                # Type casting for the columns to ensure correct types
+                df["Reported Date"] = pd.to_datetime(df["Reported Date"], errors='coerce')  # Ensure datetime format
+                df["Modal Price (Rs./Quintal)"] = pd.to_numeric(df["Modal Price (Rs./Quintal)"], errors='coerce').astype("int64")
+                df["Arrivals (Tonnes)"] = pd.to_numeric(df["Arrivals (Tonnes)"], errors='coerce').astype("float64")
+                df["state"] = df["state"].astype("string")
+                df["Market Name"] = df["Market Name"].astype("string")
 
-            # Reorder columns
-            df = df[["Reported Date", "Market Name", "Arrivals (Tonnes)", "Modal Price (Rs./Quintal)", "state"]]
-            for index, row in df.iterrows():
-                document = row.to_dict()
-                collection.insert_one(document)
+                # Reorder columns
+                df = df[["Reported Date", "Market Name", "Arrivals (Tonnes)", "Modal Price (Rs./Quintal)", "state"]]
+                for index, row in df.iterrows():
+                    document = row.to_dict()
+                    collection.insert_one(document)
 
-            return df
-    else:
-        st.write("No response")
+                return df
+        else:
+            st.error("Failed to fetch data from the website. HTTP Status: " + str(response.status_code))
 
     return None
 
