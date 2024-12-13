@@ -150,19 +150,14 @@ state_market_dict = {
     ]
 }
 
-import pandas as pd
-import numpy as np
-
 def create_forecasting_features(df):
     df = df.copy()
     if not isinstance(df.index, pd.DatetimeIndex):
         df = df.set_index('Reported Date')
         df.index = pd.to_datetime(df.index)
 
-    # Create a mapping of target values for lag features
     target_map = df['Modal Price (Rs./Quintal)'].to_dict()
 
-    # Time-based features
     df['dayofweek'] = df.index.dayofweek
     df['quarter'] = df.index.quarter
     df['month'] = df.index.month
@@ -170,50 +165,35 @@ def create_forecasting_features(df):
     df['dayofyear'] = df.index.dayofyear
     df['weekofyear'] = df.index.isocalendar().week
 
-    # Lag features
-    df['lag'] = (df.index - pd.Timedelta(days=14)).map(target_map)
+    df['lag14'] = (df.index - pd.Timedelta(days=14)).map(target_map)
     df['lag28'] = (df.index - pd.Timedelta(days=28)).map(target_map)
     df['lag56'] = (df.index - pd.Timedelta(days=56)).map(target_map)
     df['lag_3months'] = (df.index - pd.DateOffset(months=3)).map(target_map)
     df['lag_6months'] = (df.index - pd.DateOffset(months=6)).map(target_map)
-
-    # Rolling features
-    for window in [28, 42, 56]:  # Monthly, 6-week, and 8-week windows
+    for window in [7, 14, 28]:
         df[f'rolling_mean_{window}'] = df['Modal Price (Rs./Quintal)'].rolling(window=window, min_periods=1).mean()
         df[f'rolling_std_{window}'] = df['Modal Price (Rs./Quintal)'].rolling(window=window, min_periods=1).std()
 
-    # Exponential moving averages for smoothing recent trends
-    df['ema28'] = df['Modal Price (Rs./Quintal)'].ewm(span=28, adjust=False).mean()
-    df['ema42'] = df['Modal Price (Rs./Quintal)'].ewm(span=42, adjust=False).mean()
-    df['ema56'] = df['Modal Price (Rs./Quintal)'].ewm(span=56, adjust=False).mean()
-
-    # Seasonal averages (historical values based on seasonality)
+    df['ema7'] = df['Modal Price (Rs./Quintal)'].ewm(span=7, adjust=False).mean()
+    df['ema14'] = df['Modal Price (Rs./Quintal)'].ewm(span=14, adjust=False).mean()
     df['monthly_avg'] = df.groupby('month')['Modal Price (Rs./Quintal)'].transform('mean')
     df['weekly_avg'] = df.groupby('weekofyear')['Modal Price (Rs./Quintal)'].transform('mean')
     df['dayofweek_avg'] = df.groupby('dayofweek')['Modal Price (Rs./Quintal)'].transform('mean')
 
-    # Fourier terms for periodicity
     df['fourier_sin_365'] = np.sin(2 * np.pi * df.index.dayofyear / 365)
     df['fourier_cos_365'] = np.cos(2 * np.pi * df.index.dayofyear / 365)
-
     df['fourier_sin_14'] = np.sin(2 * np.pi * df.index.dayofyear / 14)
     df['fourier_cos_14'] = np.cos(2 * np.pi * df.index.dayofyear / 14)
 
-    # Statistical history features
     df['recent_min_14'] = (df.index - pd.Timedelta(days=14)).map(target_map).min()
     df['recent_max_14'] = (df.index - pd.Timedelta(days=14)).map(target_map).max()
     df['recent_range_14'] = df['recent_max_14'] - df['recent_min_14']
 
-    # Long-term trends
     df['yearly_avg'] = df.groupby('year')['Modal Price (Rs./Quintal)'].transform('mean')
     df['cumulative_mean'] = df['Modal Price (Rs./Quintal)'].expanding().mean()
 
-    # Calculate correlations and print
-    correlation = df.corr()['Modal Price (Rs./Quintal)'].sort_values()
-    print("Correlation with Modal Price:\n", correlation)
-    to_remove = correlation[correlation.abs() < 0.2].index.to_list()
-    df.drop(columns=to_remove, inplace=True)
     return df.reset_index()
+
 
 def preprocess_data(df):
     # Retain only 'Reported Date' and 'Modal Price (Rs./Quintal)' columns
