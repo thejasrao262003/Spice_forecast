@@ -1118,6 +1118,7 @@ def collection_to_dataframe(collection, drop_id=True):
 
     return df
 
+def editable_spreadsheet(): 
     st.title("📝 Editable Spreadsheet with Process Button")
 
     # Dropdown options for Region
