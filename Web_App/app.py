@@ -1127,6 +1127,11 @@ from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 def editable_spreadsheet():
     st.title("Editable Spreadsheet")
 
+    # User input fields
+    input_region = st.text_input("Enter Region", placeholder="Region Name")
+    input_season = st.text_input("Enter Season", placeholder="Season (e.g., Winter)")
+    input_area = st.number_input("Enter Area (in hectares)", min_value=0.0, format="%.2f")
+
     # Create an empty DataFrame with 60 rows initialized to None or appropriate default values
     data = {
         "Region": [None] * 60,
@@ -1163,11 +1168,22 @@ def editable_spreadsheet():
         height=600  # Adjust as needed to fit the display
     )
 
-    # Process button to display the DataFrame (only if needed)
-    if st.button("Process"):
+    # Process button to calculate predicted production
+    if st.button("Calculate Production"):
         updated_df = pd.DataFrame(grid_response["data"])
-        st.write("### Processed DataFrame:")
-        st.dataframe(updated_df)
+
+        # Remove rows where any critical field is None
+        updated_df.dropna(subset=['Region', 'Season', 'Year', 'Area', 'Yield', 'Production'], inplace=True)
+
+        # Calculate average yield
+        if not updated_df.empty and updated_df['Yield'].dtype != object:
+            average_yield = updated_df['Yield'].mean()
+            # Calculate predicted production based on user-entered area and average yield
+            predicted_production = average_yield * input_area
+            st.success(f"The predicted Production Volume is: {predicted_production:.2f} units")
+        else:
+            st.error("No valid data available to calculate average yield and production.")
+
 
 def display_statistics(df):
     st.title("📊 National Market Statistics Dashboard")
