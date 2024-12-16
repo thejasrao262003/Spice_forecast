@@ -1123,78 +1123,72 @@ def editable_spreadsheet():
 
     # Excel file uploader
     uploaded_file = st.file_uploader("Upload your Excel file", type=['xlsx'])
-    use_excel = False  # Flag to determine source of data for processing
+    df = None
+    use_excel = False
 
-    # Create and show editable grid only if no Excel file is uploaded
     if uploaded_file is not None:
-        # Read the Excel file
         df = pd.read_excel(uploaded_file)
-        use_excel = True  # Set flag to true as we have valid Excel data
+        use_excel = True
         st.write("Using data from the uploaded Excel file.")
     else:
-        # Allow manual data entry via editable grid if no file is uploaded
-        if 'df' not in st.session_state:
+        # Form for manual data entry
+        with st.form(key='data_entry_form'):
+            input_region = st.text_input("Enter Region", placeholder="Region Name")
+            input_season = st.text_input("Enter Season", placeholder="Season (e.g., Winter)")
+            input_area = st.number_input("Enter Area (in hectares)", min_value=0.0, format="%.2f")
+            form_submitted = st.form_submit_button("Submit Data")
+
+        if form_submitted:
+            # Initialize DataFrame for the grid if form data is submitted
             st.session_state.df = pd.DataFrame({
-                "Region": [None] * 60,
-                "Year": [None] * 60,
-                "Season": [None] * 60,
-                "Area": [None] * 60,
+                "Region": [input_region] * 60,
+                "Year": [2021] * 60,  # Example Year, you can make this dynamic as needed
+                "Season": [input_season] * 60,
+                "Area": [input_area] * 60,
                 "Production": [None] * 60,
                 "Yield": [None] * 60,
             })
+            use_excel = False
 
-        # Define dropdown options for the grid
-        region_options = ["India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
-        season_options = ["Winter", "Spring", "Summer", "Autumn"]
+        # Setup and display the editable grid if form is submitted
+        if 'df' in st.session_state:
+            gb = GridOptionsBuilder.from_dataframe(st.session_state.df)
+            gb.configure_column("Region", editable=True)
+            gb.configure_column("Year", editable=True)
+            gb.configure_column("Season", editable=True)
+            gb.configure_column("Area", editable=True)
+            gb.configure_column("Production", editable=True)
+            gb.configure_column("Yield", editable=True)
+            grid_options = gb.build()
 
-        # Setup grid options
-        gb = GridOptionsBuilder.from_dataframe(st.session_state.df)
-        gb.configure_column("Region", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": region_options})
-        gb.configure_column("Year", editable=True)
-        gb.configure_column("Season", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": season_options})
-        gb.configure_column("Area", editable=True)
-        gb.configure_column("Production", editable=True)
-        gb.configure_column("Yield", editable=True)
-        grid_options = gb.build()
+            grid_response = AgGrid(
+                st.session_state.df,
+                gridOptions=grid_options,
+                data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+                update_mode=GridUpdateMode.MODEL_CHANGED,
+                fit_columns_on_grid_load=True,
+                enable_enterprise_modules=False,
+                height=600
+            )
 
-        # Display the grid
-        grid_response = AgGrid(
-            st.session_state.df,
-            gridOptions=grid_options,
-            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-            update_mode=GridUpdateMode.MODEL_CHANGED,
-            fit_columns_on_grid_load=True,
-            enable_enterprise_modules=False,
-            height=600  # Adjust as needed to fit the display
-        )
+            # Update DataFrame in session state after any change
+            st.session_state.df = pd.DataFrame(grid_response["data"])
 
-        # Update the DataFrame in session state after any change in the grid
-        st.session_state.df = pd.DataFrame(grid_response["data"])
-
-    # Button and logic for calculation
+    # Calculation button: processes data from Excel or the grid
     if st.button("Calculate Production"):
         if use_excel:
-            process_dataframe(df)  # Process Excel data
-        else:
-            process_dataframe(st.session_state.df)  # Process data from the grid
+            process_dataframe(df)  # Processing data from Excel
+        elif 'df' in st.session_state:
+            process_dataframe(st.session_state.df)  # Processing data from the grid
 
 def process_dataframe(df):
-    # Assuming 'Yield' and 'Area' are in the DataFrame, and you need 'Region' for further processing
-    if 'Region' in df.columns and 'Yield' in df.columns and 'Area' in df.columns:
-        region_input = st.text_input("Enter Region to Filter By", placeholder="Region Name")
-        if region_input:
-            filtered_df = df[df['Region'].str.lower() == region_input.lower()]
-            if not filtered_df.empty:
-                average_yield = filtered_df['Yield'].mean()
-                total_area = filtered_df['Area'].sum()
-                predicted_production = average_yield * total_area
-                st.success(f"The predicted Production Volume for {region_input} is: {predicted_production:.2f} units")
-            else:
-                st.error("No data found for the specified region.")
-        else:
-            st.error("Please enter a region to proceed.")
+    if df is not None and 'Region' in df.columns and 'Yield' in df.columns and 'Area' in df.columns:
+        average_yield = df['Yield'].mean()
+        total_area = df['Area'].sum()
+        predicted_production = average_yield * total_area
+        st.success(f"The predicted Production Volume is: {predicted_production:.2f} units")
     else:
-        st.error("Uploaded file is missing required columns: 'Region', 'Yield', and/or 'Area'.")
+        st.error("Missing required columns or no data to process.")
 
 
 def display_statistics(df):
