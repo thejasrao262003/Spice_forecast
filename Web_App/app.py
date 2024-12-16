@@ -1118,8 +1118,7 @@ def collection_to_dataframe(collection, drop_id=True):
 
     return df
 
-def editable_spreadsheet():
-    st.title("📝 Editable Spreadsheet with Dynamic Rows")
+    st.title("📝 Editable Spreadsheet with Process Button")
 
     # Dropdown options for Region
     region_options = ["India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
@@ -1159,24 +1158,10 @@ def editable_spreadsheet():
     # Get the updated DataFrame
     updated_df = pd.DataFrame(grid_response["data"])
 
-    # Add a row button
-    if st.button("+ Add Row"):
-        new_row = pd.DataFrame(
-            {
-                "Region": ["India"],
-                "Year": [2024],
-                "Season": [""],
-                "Area": [""],
-                "Production": [""],
-                "Yield": [""],
-            }
-        )
-        updated_df = pd.concat([updated_df, new_row], ignore_index=True)
-
-    # Display the editable DataFrame
-    st.write("### Updated DataFrame:")
-    st.dataframe(updated_df)
-
+    # Process button to display the DataFrame
+    if st.button("Process"):
+        st.write("### Updated DataFrame:")
+        st.dataframe(updated_df)
     return updated_df
 
 
