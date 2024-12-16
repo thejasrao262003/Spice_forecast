@@ -14,3 +14,4 @@ statsmodels
 werkzeug
 selenium
 webdriver-manager
+streamlit-aggrid
