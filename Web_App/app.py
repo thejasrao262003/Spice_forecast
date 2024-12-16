@@ -1117,45 +1117,66 @@ def collection_to_dataframe(collection, drop_id=True):
 
     return df
 
-def create_dynamic_table():
-    st.write("### Input Table")
+def editable_spreadsheet():
+    st.title("📝 Editable Spreadsheet with Dynamic Rows")
 
-    # Initialize the table in session_state if it doesn't exist
-    if "table_data" not in st.session_state:
-        st.session_state.table_data = [
-            {"Region": "India", "Year": "", "Season": "", "Area": "", "Production": "", "Yield": ""}
-            for _ in range(5)
-        ]
+    # Dropdown options for Region
+    region_options = ["India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
 
-    # Function to add a new row to the table
-    def add_row():
-        st.session_state.table_data.append(
-            {"Region": "India", "Year": "", "Season": "", "Area": "", "Production": "", "Yield": ""}
+    # Initial DataFrame
+    data = {
+        "Region": ["India"] * 5,
+        "Year": [2024] * 5,
+        "Season": ["Winter"] * 5,
+        "Area": [100] * 5,
+        "Production": [500] * 5,
+        "Yield": [5] * 5,
+    }
+    df = pd.DataFrame(data)
+
+    # Create grid options
+    gb = GridOptionsBuilder.from_dataframe(df)
+    gb.configure_column("Region", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": region_options})
+    gb.configure_column("Year", editable=True)
+    gb.configure_column("Season", editable=True)
+    gb.configure_column("Area", editable=True)
+    gb.configure_column("Production", editable=True)
+    gb.configure_column("Yield", editable=True)
+    grid_options = gb.build()
+
+    # Editable grid
+    grid_response = AgGrid(
+        df,
+        gridOptions=grid_options,
+        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+        update_mode=GridUpdateMode.MODEL_CHANGED,
+        fit_columns_on_grid_load=True,
+        theme="light",
+        enable_enterprise_modules=False,
+    )
+
+    # Get the updated DataFrame
+    updated_df = pd.DataFrame(grid_response["data"])
+
+    # Add a row button
+    if st.button("+ Add Row"):
+        new_row = pd.DataFrame(
+            {
+                "Region": ["India"],
+                "Year": [2024],
+                "Season": [""],
+                "Area": [""],
+                "Production": [""],
+                "Yield": [""],
+            }
         )
+        updated_df = pd.concat([updated_df, new_row], ignore_index=True)
 
-    # Create the table
-    columns = ["Region", "Year", "Season", "Area", "Production", "Yield"]
-    regions = ["India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
+    # Display the editable DataFrame
+    st.write("### Updated DataFrame:")
+    st.dataframe(updated_df)
 
-    for i, row in enumerate(st.session_state.table_data):
-        cols = st.columns(len(columns))
-        for col, field in zip(cols, columns):
-            if field == "Region":
-                # Check if the value exists in regions, else default to the first region
-                default_index = regions.index(row[field]) if row[field] in regions else 0
-                row[field] = col.selectbox(
-                    f"{field} {i+1}", regions, key=f"{field}_{i}", index=default_index
-                )
-            else:
-                row[field] = col.text_input(f"{field} {i+1}", value=row[field], key=f"{field}_{i}")
-
-    # Add button to add a new row
-    if st.button("➕ Add Row"):
-        add_row()
-
-    # Optional: Display table data for debugging
-    st.write("### Table Data (for debugging):")
-    st.write(st.session_state.table_data)
+    return updated_df
 
 
 def display_statistics(df):
@@ -1268,7 +1289,7 @@ def display_statistics(df):
     national_data = national_data.sort_values(by='Reported Date', ascending=False)
     st.dataframe(national_data.head(14).reset_index(drop=True), use_container_width=True, height=525)
 
-    create_dynamic_table()
+    updated_df = editable_spreadsheet()
 
 
 
