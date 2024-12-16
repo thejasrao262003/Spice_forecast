@@ -1125,26 +1125,25 @@ from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 
 
 def editable_spreadsheet():
-    st.title("📝 Editable Spreadsheet with Process Button")
+    st.title("Editable Spreadsheet")
 
-    # Dropdown options for Region and Season
-    region_options = ["Select Region", "India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
-    season_options = ["Select Season", "Winter", "Spring", "Summer", "Autumn"]
+    # Create an empty DataFrame with 60 rows initialized to None or appropriate default values
+    data = {
+        "Region": [None] * 60,
+        "Year": [None] * 60,
+        "Season": [None] * 60,
+        "Area": [None] * 60,
+        "Production": [None] * 60,
+        "Yield": [None] * 60,
+    }
+    df = pd.DataFrame(data)
 
-    # Check if the DataFrame is in session state; if not, create it with 20 rows of placeholder values
-    if 'dataframe' not in st.session_state:
-        data = {
-            "Region": ["Select Region"] * 20,
-            "Year": [None] * 20,
-            "Season": ["Select Season"] * 20,
-            "Area": [None] * 20,
-            "Production": [None] * 20,
-            "Yield": [None] * 20
-        }
-        st.session_state.dataframe = pd.DataFrame(data)
+    # Define dropdown options
+    region_options = ["India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
+    season_options = ["Winter", "Spring", "Summer", "Autumn"]
 
-    # Create grid options
-    gb = GridOptionsBuilder.from_dataframe(st.session_state.dataframe)
+    # Setup grid options
+    gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_column("Region", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": region_options})
     gb.configure_column("Year", editable=True)
     gb.configure_column("Season", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": season_options})
@@ -1153,36 +1152,22 @@ def editable_spreadsheet():
     gb.configure_column("Yield", editable=True)
     grid_options = gb.build()
 
-    # Editable grid setup
+    # Display the grid
     grid_response = AgGrid(
-        st.session_state.dataframe,
+        df,
         gridOptions=grid_options,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         update_mode=GridUpdateMode.MODEL_CHANGED,
         fit_columns_on_grid_load=True,
         enable_enterprise_modules=False,
-        height=600,  # Set height to accommodate more rows
-        reload_data=False  # Keeps the grid's data state on re-runs
+        height=600  # Adjust as needed to fit the display
     )
 
-    # Update session state with the data from the grid
-    st.session_state.dataframe = pd.DataFrame(grid_response["data"])
-
-    # Process button to display the DataFrame
+    # Process button to display the DataFrame (only if needed)
     if st.button("Process"):
-        # Filter out rows that still have placeholder values or are empty
-        processed_df = st.session_state.dataframe[
-            (st.session_state.dataframe['Region'] != 'Select Region') &
-            (st.session_state.dataframe['Season'] != 'Select Season') &
-            (st.session_state.dataframe['Year'].notna()) &
-            (st.session_state.dataframe['Area'].notna()) &
-            (st.session_state.dataframe['Production'].notna()) &
-            (st.session_state.dataframe['Yield'].notna())
-        ]
+        updated_df = pd.DataFrame(grid_response["data"])
         st.write("### Processed DataFrame:")
-        st.dataframe(processed_df)
-
-    return st.session_state.dataframe
+        st.dataframe(updated_df)
 
 def display_statistics(df):
     st.title("📊 National Market Statistics Dashboard")
