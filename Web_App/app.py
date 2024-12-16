@@ -7,6 +7,7 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
 from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime, timedelta
+import plotly.express as px
 import plotly.graph_objects as go
 import calendar
 import certifi
