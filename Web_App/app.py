@@ -1159,7 +1159,7 @@ def editable_spreadsheet():
     grid_response = AgGrid(
         st.session_state.df,
         gridOptions=grid_options,
-        data_return_mode=DataReturnMode.FILTERED_AND SORTED,
+        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         update_mode=GridUpdateMode.MODEL_CHANGED,
         fit_columns_on_grid_load=True,
         enable_enterprise_modules=False,
