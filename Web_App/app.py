@@ -1141,8 +1141,10 @@ def create_dynamic_table():
         cols = st.columns(len(columns))
         for col, field in zip(cols, columns):
             if field == "Region":
+                # Check if the value exists in regions, else default to the first region
+                default_index = regions.index(row[field]) if row[field] in regions else 0
                 row[field] = col.selectbox(
-                    f"{field} {i+1}", regions, key=f"{field}_{i}", index=regions.index(row[field])
+                    f"{field} {i+1}", regions, key=f"{field}_{i}", index=default_index
                 )
             else:
                 row[field] = col.text_input(f"{field} {i+1}", value=row[field], key=f"{field}_{i}")
@@ -1154,6 +1156,7 @@ def create_dynamic_table():
     # Optional: Display table data for debugging
     st.write("### Table Data (for debugging):")
     st.write(st.session_state.table_data)
+
 
 def display_statistics(df):
     st.title("📊 National Market Statistics Dashboard")
