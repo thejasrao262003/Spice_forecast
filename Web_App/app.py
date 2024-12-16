@@ -1118,31 +1118,30 @@ def collection_to_dataframe(collection, drop_id=True):
 
     return df
 
-
-
 def editable_spreadsheet():
     st.title("Editable Spreadsheet")
 
-    # Create a form for inputs to prevent rerunning during input changes
+    # Create a form for initial user inputs
     with st.form(key='input_form'):
         input_region = st.text_input("Enter Region", placeholder="Region Name")
         input_season = st.text_input("Enter Season", placeholder="Season (e.g., Winter)")
         input_area = st.number_input("Enter Area (in hectares)", min_value=0.0, format="%.2f")
-        submit_button = st.form_submit_button(label='Calculate Production')
+        # Add a submit button in the form to submit these inputs
+        form_submitted = st.form_submit_button(label='Submit Inputs')
 
-    # Initialize DataFrame for the grid, if not already in session state
-    if 'df' not in st.session_state:
-        data = {
+    # Initialize DataFrame for the grid if not already in session state
+    if 'df' not in st.session_state or form_submitted:
+        # Resetting or initializing the DataFrame when form is submitted
+        st.session_state.df = pd.DataFrame({
             "Region": [None] * 60,
             "Year": [None] * 60,
             "Season": [None] * 60,
             "Area": [None] * 60,
             "Production": [None] * 60,
             "Yield": [None] * 60,
-        }
-        st.session_state.df = pd.DataFrame(data)
+        })
 
-    # Define dropdown options
+    # Define dropdown options for the grid
     region_options = ["India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
     season_options = ["Winter", "Spring", "Summer", "Autumn"]
 
@@ -1160,7 +1159,7 @@ def editable_spreadsheet():
     grid_response = AgGrid(
         st.session_state.df,
         gridOptions=grid_options,
-        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+        data_return_mode=DataReturnMode.FILTERED_AND SORTED,
         update_mode=GridUpdateMode.MODEL_CHANGED,
         fit_columns_on_grid_load=True,
         enable_enterprise_modules=False,
@@ -1170,8 +1169,8 @@ def editable_spreadsheet():
     # Update the DataFrame in session state after any change in the grid
     st.session_state.df = pd.DataFrame(grid_response["data"])
 
-    # Perform calculation upon form submission
-    if submit_button:
+    # Separate button for calculating production to ensure it's clear this is a separate action
+    if st.button("Calculate Production"):
         # Clean and process the DataFrame
         processed_df = st.session_state.df.dropna(subset=['Region', 'Season', 'Year', 'Area', 'Yield', 'Production'])
         if not processed_df.empty and processed_df['Yield'].dtype != object:
@@ -1180,7 +1179,6 @@ def editable_spreadsheet():
             st.success(f"The predicted Production Volume based on the input area is: {predicted_production:.2f} units")
         else:
             st.error("No valid data available to calculate average yield and production.")
-
 
 
 
