@@ -1127,23 +1127,25 @@ def editable_spreadsheet():
 
     # Dropdown options for Region
     region_options = ["Select Region", "India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
+    season_options = ["Select Season", "Winter", "Spring", "Summer", "Autumn"]
 
-    # Placeholder for an empty DataFrame with initial row with placeholders
-    if 'dataframe' not in st.session_state or st.session_state.dataframe.empty:
+    # Check if the DataFrame is in session state; if not, create it
+    if 'dataframe' not in st.session_state:
+        # Create an empty DataFrame with placeholders
         st.session_state.dataframe = pd.DataFrame({
-            "Region": ["Select Region"],
-            "Year": [""],
-            "Season": ["Select Season"],
-            "Area": [""],
-            "Production": [""],
-            "Yield": [""]
+            "Region": ["Select Region"] * 60,
+            "Year": [None] * 60,
+            "Season": ["Select Season"] * 60,
+            "Area": [None] * 60,
+            "Production": [None] * 60,
+            "Yield": [None] * 60
         })
 
     # Create grid options
     gb = GridOptionsBuilder.from_dataframe(st.session_state.dataframe)
     gb.configure_column("Region", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": region_options})
     gb.configure_column("Year", editable=True)
-    gb.configure_column("Season", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": ["Select Season", "Winter", "Spring", "Summer", "Autumn"]})
+    gb.configure_column("Season", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": season_options})
     gb.configure_column("Area", editable=True)
     gb.configure_column("Production", editable=True)
     gb.configure_column("Yield", editable=True)
@@ -1157,23 +1159,24 @@ def editable_spreadsheet():
         update_mode=GridUpdateMode.MODEL_CHANGED,
         fit_columns_on_grid_load=True,
         enable_enterprise_modules=False,
-        height=300,  # You can set a fixed height
-        reload_data=False  # Prevents data from resetting on reruns
+        height=600,  # Set height to accommodate more rows
+        reload_data=False  # Keeps the grid's data state on re-runs
     )
 
-    # Update session state
+    # Update session state with the data from the grid
     st.session_state.dataframe = pd.DataFrame(grid_response["data"])
-
-    # Button to add an extra row
-    if st.button("Add Row"):
-        new_row = {"Region": "Select Region", "Year": "", "Season": "Select Season", "Area": "", "Production": "", "Yield": ""}
-        st.session_state.dataframe = pd.concat([st.session_state.dataframe, pd.DataFrame([new_row])], ignore_index=True)
-        AgGrid(st.session_state.dataframe, gridOptions=grid_options, fit_columns_on_grid_load=True)
 
     # Process button to display the DataFrame
     if st.button("Process"):
-        st.write("### Updated DataFrame:")
-        st.dataframe(st.session_state.dataframe)
+        # Filter out rows that are still at their placeholder values or are empty
+        processed_df = st.session_state.dataframe[(st.session_state.dataframe['Region'] != 'Select Region') &
+                                                  (st.session_state.dataframe['Season'] != 'Select Season') &
+                                                  (st.session_state.dataframe['Year'].notna()) &
+                                                  (st.session_state.dataframe['Area'].notna()) &
+                                                  (st.session_state.dataframe['Production'].notna()) &
+                                                  (st.session_state.dataframe['Yield'].notna())]
+        st.write("### Processed DataFrame:")
+        st.dataframe(processed_df)
 
     return st.session_state.dataframe
 
