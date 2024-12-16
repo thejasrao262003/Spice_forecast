@@ -1408,7 +1408,7 @@ if st.session_state.authenticated:
     if st.button("Get Live Data Feed"):
         fetch_and_store_data()
     # Top-level radio buttons for switching views
-    view_mode = st.radio("", ["Statistics", "Plots", "Predictions"], horizontal=True)
+    view_mode = st.radio("", ["Statistics", "Plots", "Predictions", "Exim"], horizontal=True)
 
     if view_mode == "Plots":
         st.sidebar.header("Filters")
@@ -1428,7 +1428,7 @@ if st.session_state.authenticated:
         
         # Add 'India' option to the list of states
         state_options = list(state_market_dict.keys()) + ['India']
-        selected_state = st.sidebar.selectbox("Select State", state_options)
+        selected_state = st.sidebar.selectbox("Select", state_options)
         
         market_wise = False
         if selected_state != 'India':
@@ -1595,6 +1595,78 @@ if st.session_state.authenticated:
         df = get_dataframe_from_collection(collection)
         print(df)
         display_statistics(df)
+    elif view_mode == "Exim":
+        df = collection_to_dataframe(impExp)
+    
+        # Add radio buttons for user selection
+        plot_option = st.radio(
+            "Select the data to visualize:",
+            ["Import Price", "Import Quantity", "Export Price", "Export Quantity"],
+            horizontal=True
+        )
+    
+        # Dropdown for time period selection
+        time_period = st.selectbox(
+            "Select time period:",
+            ["1 Month", "6 Months", "1 Year", "2 Years"]
+        )
+    
+        # Convert Reported Date to datetime
+        df["Reported Date"] = pd.to_datetime(df["Reported Date"], format="%Y-%m-%d")
+    
+        # Filter data based on the time period
+        if time_period == "1 Month":
+            start_date = pd.Timestamp.now() - pd.DateOffset(months=1)
+        elif time_period == "6 Months":
+            start_date = pd.Timestamp.now() - pd.DateOffset(months=6)
+        elif time_period == "1 Year":
+            start_date = pd.Timestamp.now() - pd.DateOffset(years=1)
+        elif time_period == "2 Years":
+            start_date = pd.Timestamp.now() - pd.DateOffset(years=2)
+    
+        filtered_df = df[df["Reported Date"] >= start_date]
+    
+        # Process data based on the selected option
+        if plot_option == "Import Price":
+            grouped_df = (
+                filtered_df.groupby("Reported Date", as_index=False)["VALUE_IMPORT"]
+                .mean()
+                .rename(columns={"VALUE_IMPORT": "Average Import Price"})
+            )
+            y_axis_label = "Average Import Price (Rs.)"
+        elif plot_option == "Import Quantity":
+            grouped_df = (
+                filtered_df.groupby("Reported Date", as_index=False)["QUANTITY_IMPORT"]
+                .sum()
+                .rename(columns={"QUANTITY_IMPORT": "Total Import Quantity"})
+            )
+            y_axis_label = "Total Import Quantity (Tonnes)"
+        elif plot_option == "Export Price":
+            grouped_df = (
+                filtered_df.groupby("Reported Date", as_index=False)["VALUE_EXPORT"]
+                .mean()
+                .rename(columns={"VALUE_EXPORT": "Average Export Price"})
+            )
+            y_axis_label = "Average Export Price (Rs.)"
+        elif plot_option == "Export Quantity":
+            grouped_df = (
+                filtered_df.groupby("Reported Date", as_index=False)["QUANTITY_IMPORT"]
+                .sum()
+                .rename(columns={"QUANTITY_IMPORT": "Total Export Quantity"})
+            )
+            y_axis_label = "Total Export Quantity (Tonnes)"
+    
+        # Plot using Plotly
+        fig = px.line(
+            grouped_df,
+            x="Reported Date",
+            y=grouped_df.columns[1],  # Dynamic y-axis column name
+            title=f"{plot_option} Over Time",
+            labels={"Reported Date": "Date", grouped_df.columns[1]: y_axis_label},
+        )
+        st.plotly_chart(fig)
+        
+        
 else:
     with st.form("login_form"):
         st.subheader("Please log in")
