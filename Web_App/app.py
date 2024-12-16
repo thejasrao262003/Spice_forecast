@@ -1121,7 +1121,7 @@ def collection_to_dataframe(collection, drop_id=True):
 
 
 def editable_spreadsheet():
-    st.title("Data Processing with Excel Input")
+    st.title("Sowing Report Prediction Model")
 
     # Excel file uploader
     uploaded_file = st.file_uploader("Upload your Excel file", type=['xlsx'])
