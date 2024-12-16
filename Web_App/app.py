@@ -1133,12 +1133,12 @@ def editable_spreadsheet():
     if 'dataframe' not in st.session_state:
         # Create an empty DataFrame with placeholders
         st.session_state.dataframe = pd.DataFrame({
-            "Region": ["Select Region"] * 60,
-            "Year": [None] * 60,
-            "Season": ["Select Season"] * 60,
-            "Area": [None] * 60,
-            "Production": [None] * 60,
-            "Yield": [None] * 60
+            "Region": ["Select Region"] * 20,
+            "Year": [None] * 20,
+            "Season": ["Select Season"] * 20,
+            "Area": [None] * 20,
+            "Production": [None] * 20,
+            "Yield": [None] * 20
         })
 
     # Create grid options
