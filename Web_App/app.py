@@ -1561,22 +1561,15 @@ if st.session_state.authenticated:
                 query_filter = {"state": selected_state}
                 df = fetch_and_process_data(query_filter)
                 forecast(df, filter_key)
-
         elif sub_option == "Market":
-            kharif_rabi_option = st.radio("Select one of the following", ["Kharif", "Rabi"], horizontal=True)
-
-            # Define market options based on Kharif/Rabi selection
-            market_options = {
-                "Kharif": ["Rajkot", "Neemuch", "Kalburgi"],
-                "Rabi": ["Rajkot", "Warangal"]
-            }
-
-            selected_market = st.selectbox("Select Market for Model Training", market_options[kharif_rabi_option])
+            market_options = ["Rajkot", "Neemuch", "Kalburgi", "Warangal"]
+            selected_market = st.selectbox("Select Market for Model Training", market_options)
             filter_key = f"market_{selected_market}"  # Unique key for each market
             if st.button("Forecast"):
                 query_filter = {"Market Name": selected_market}
                 df = fetch_and_process_data(query_filter)
                 forecast(df, filter_key)
+        
         elif sub_option == "India":
             df = collection_to_dataframe(impExp)
             if True:
