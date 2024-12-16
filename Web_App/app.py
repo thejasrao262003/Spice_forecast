@@ -1118,7 +1118,7 @@ def collection_to_dataframe(collection, drop_id=True):
 
     return df
 
-def editable_spreadsheet(): 
+def editable_spreadsheet():
     st.title("📝 Editable Spreadsheet with Process Button")
 
     # Dropdown options for Region
@@ -1158,10 +1158,18 @@ def editable_spreadsheet():
     # Get the updated DataFrame
     updated_df = pd.DataFrame(grid_response["data"])
 
+    # Button to add an extra row
+    if st.button("Add Row"):
+        # Append a new row with default values
+        new_row = {"Region": "India", "Year": 2024, "Season": "Winter", "Area": 100, "Production": 500, "Yield": 5}
+        updated_df = updated_df.append(new_row, ignore_index=True)
+        AgGrid(updated_df, gridOptions=grid_options, fit_columns_on_grid_load=True)
+
     # Process button to display the DataFrame
     if st.button("Process"):
         st.write("### Updated DataFrame:")
         st.dataframe(updated_df)
+
     return updated_df
 
 
