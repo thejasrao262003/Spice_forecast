@@ -1122,24 +1122,28 @@ import streamlit as st
 import pandas as pd
 from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 
+
 def editable_spreadsheet():
     st.title("📝 Editable Spreadsheet with Process Button")
 
-    # Dropdown options for Region
+    # Dropdown options for Region and Season
     region_options = ["Select Region", "India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
     season_options = ["Select Season", "Winter", "Spring", "Summer", "Autumn"]
 
     # Check if the DataFrame is in session state; if not, create it
     if 'dataframe' not in st.session_state:
-        # Create an empty DataFrame with placeholders
-        st.session_state.dataframe = pd.DataFrame({
-            "Region": ["Select Region"] * 20,
-            "Year": [None] * 20,
-            "Season": ["Select Season"] * 20,
-            "Area": [None] * 20,
-            "Production": [None] * 20,
-            "Yield": [None] * 20
-        })
+        # Manually create each row of the DataFrame
+        rows = []
+        for _ in range(20):  # Ensures 20 rows
+            rows.append({
+                "Region": "Select Region",
+                "Year": None,
+                "Season": "Select Season",
+                "Area": None,
+                "Production": None,
+                "Yield": None
+            })
+        st.session_state.dataframe = pd.DataFrame(rows)
 
     # Create grid options
     gb = GridOptionsBuilder.from_dataframe(st.session_state.dataframe)
@@ -1151,7 +1155,7 @@ def editable_spreadsheet():
     gb.configure_column("Yield", editable=True)
     grid_options = gb.build()
 
-    # Editable grid
+    # Editable grid setup
     grid_response = AgGrid(
         st.session_state.dataframe,
         gridOptions=grid_options,
@@ -1168,13 +1172,15 @@ def editable_spreadsheet():
 
     # Process button to display the DataFrame
     if st.button("Process"):
-        # Filter out rows that are still at their placeholder values or are empty
-        processed_df = st.session_state.dataframe[(st.session_state.dataframe['Region'] != 'Select Region') &
-                                                  (st.session_state.dataframe['Season'] != 'Select Season') &
-                                                  (st.session_state.dataframe['Year'].notna()) &
-                                                  (st.session_state.dataframe['Area'].notna()) &
-                                                  (st.session_state.dataframe['Production'].notna()) &
-                                                  (st.session_state.dataframe['Yield'].notna())]
+        # Filter out rows that still have placeholder values or are empty
+        processed_df = st.session_state.dataframe[
+            (st.session_state.dataframe['Region'] != 'Select Region') &
+            (st.session_state.dataframe['Season'] != 'Select Season') &
+            (st.session_state.dataframe['Year'].notna()) &
+            (st.session_state.dataframe['Area'].notna()) &
+            (st.session_state.dataframe['Production'].notna()) &
+            (st.session_state.dataframe['Yield'].notna())
+        ]
         st.write("### Processed DataFrame:")
         st.dataframe(processed_df)
 
