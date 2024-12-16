@@ -1118,6 +1118,10 @@ def collection_to_dataframe(collection, drop_id=True):
 
     return df
 
+import streamlit as st
+import pandas as pd
+from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
+
 def editable_spreadsheet():
     st.title("📝 Editable Spreadsheet with Process Button")
 
@@ -1160,9 +1164,11 @@ def editable_spreadsheet():
 
     # Button to add an extra row
     if st.button("Add Row"):
-        # Append a new row with default values
-        new_row = {"Region": "India", "Year": 2024, "Season": "Winter", "Area": 100, "Production": 500, "Yield": 5}
-        updated_df = updated_df.append(new_row, ignore_index=True)
+        # Create a new row with default values
+        new_row = pd.DataFrame([{"Region": "India", "Year": 2024, "Season": "Winter", "Area": 100, "Production": 500, "Yield": 5}])
+        # Append the new row using concat
+        updated_df = pd.concat([updated_df, new_row], ignore_index=True)
+        # Re-render the grid with the updated DataFrame
         AgGrid(updated_df, gridOptions=grid_options, fit_columns_on_grid_load=True)
 
     # Process button to display the DataFrame
@@ -1171,6 +1177,7 @@ def editable_spreadsheet():
         st.dataframe(updated_df)
 
     return updated_df
+
 
 
 def display_statistics(df):
