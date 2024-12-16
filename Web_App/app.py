@@ -1119,6 +1119,7 @@ def collection_to_dataframe(collection, drop_id=True):
     return df
 
 
+
 def editable_spreadsheet():
     st.title("Data Processing with Excel Input")
 
@@ -1133,35 +1134,36 @@ def editable_spreadsheet():
         # Display the DataFrame from the Excel file
         st.write("Excel data loaded:", df_excel)
 
-        # Allow users to specify a region to filter by (if the 'Region' column exists)
-        if 'Region' in df_excel.columns:
+        # Form for inputting filtering options and area for calculation
+        with st.form("input_form"):
             input_region = st.text_input("Enter Region to Filter By", placeholder="Region Name")
-        
-            # Button to calculate production based on the most recently used data input method
-            if st.button("Calculate Production"):
-                if input_region:
-                    # Filter data by the region specified
-                    filtered_df = df_excel[df_excel['Region'].str.lower() == input_region.lower()]
-                    
-                    if not filtered_df.empty:
-                        process_dataframe(filtered_df)
-                    else:
-                        st.error("No data found for the specified region.")
-                else:
-                    st.error("Please enter a region to proceed.")
-        else:
-            st.error("The uploaded file does not contain a 'Region' column.")
-    else:
-        st.info("Please upload an Excel file to proceed.")
+            input_season = st.text_input("Enter Season to Filter By", placeholder="Season (e.g., Winter)")
+            input_area = st.number_input("Enter Area (in hectares) for Production Calculation", min_value=0.0, format="%.2f")
+            submit_button = st.form_submit_button("Calculate Production")
 
-def process_dataframe(df):
-    if 'Yield' in df.columns and 'Area' in df.columns:
+        if submit_button:
+            if input_region and input_season and input_area > 0:
+                # Filter data by the region and season specified
+                filtered_df = df_excel[
+                    (df_excel['Region'].str.lower() == input_region.lower()) &
+                    (df_excel['Season'].str.lower() == input_season.lower())
+                ]
+
+                if not filtered_df.empty:
+                    process_dataframe(filtered_df, input_area)
+                else:
+                    st.error("No data found for the specified region and season.")
+            else:
+                st.error("Please enter valid region, season, and area to proceed.")
+
+def process_dataframe(df, area):
+    if 'Yield' in df.columns:
         average_yield = df['Yield'].mean()
-        total_area = df['Area'].sum()
-        predicted_production = average_yield * total_area
-        st.success(f"The predicted Production Volume for the specified region is: {predicted_production:.2f} units")
+        predicted_production = average_yield * area
+        st.success(f"The predicted Production Volume for the specified region and season is: {predicted_production:.2f} units")
     else:
-        st.error("The DataFrame does not contain necessary 'Yield' and 'Area' columns for calculation.")
+        st.error("The DataFrame does not contain a necessary 'Yield' column for calculation.")
+
 
 
 def display_statistics(df):
