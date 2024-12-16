@@ -5,6 +5,7 @@ from pymongo import MongoClient
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from xgboost import XGBRegressor
+from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
 from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime, timedelta
 import plotly.express as px
