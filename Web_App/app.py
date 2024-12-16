@@ -1425,69 +1425,81 @@ if st.session_state.authenticated:
             "5 Years": 1825
         }
         st.session_state.selected_period = period_mapping[selected_period]
-        selected_state = st.sidebar.selectbox("Select State", list(state_market_dict.keys()))
-        market_wise = st.sidebar.checkbox("Market Wise Analysis")
-        if market_wise:
-            markets = state_market_dict.get(selected_state, [])
-            selected_market = st.sidebar.selectbox("Select Market", markets)
-            query_filter = {"state": selected_state, "Market Name": selected_market}
+        
+        # Add 'India' option to the list of states
+        state_options = list(state_market_dict.keys()) + ['India']
+        selected_state = st.sidebar.selectbox("Select State", state_options)
+        
+        market_wise = False
+        if selected_state != 'India':
+            market_wise = st.sidebar.checkbox("Market Wise Analysis")
+            if market_wise:
+                markets = state_market_dict.get(selected_state, [])
+                selected_market = st.sidebar.selectbox("Select Market", markets)
+                query_filter = {"state": selected_state, "Market Name": selected_market}
+            else:
+                query_filter = {"state": selected_state}
         else:
-            query_filter = {"state": selected_state}
-
+            query_filter = {}  # For India, no specific state filter
+        
         # Dropdown for data type
         data_type = st.sidebar.radio(
             "Select Data Type",
             ["Price", "Volume", "Both"]
         )
-
+        
         # Add date filtering based on selected period
         query_filter["Reported Date"] = {
             "$gte": datetime.now() - timedelta(days=st.session_state.selected_period)
         }
-
+        
         # Submit button to trigger the query and plot
         if st.sidebar.button("✨ Let's go!"):
             # Fetch data from MongoDB
             try:
                 cursor = collection.find(query_filter)
                 data = list(cursor)
-
+        
                 if data:
                     # Convert MongoDB data to a DataFrame
                     df = pd.DataFrame(data)
                     df['Reported Date'] = pd.to_datetime(df['Reported Date'])
-
-                    # Group by Reported Date
-                    df_grouped = (
-                        df.groupby('Reported Date', as_index=False)
-                        .agg({
+        
+                    if selected_state == 'India':
+                        # Aggregate data for all of India
+                        df_grouped = df.groupby('Reported Date', as_index=False).agg({
                             'Arrivals (Tonnes)': 'sum',
                             'Modal Price (Rs./Quintal)': 'mean'
                         })
-                    )
-
+                    else:
+                        # Regular grouping by Reported Date
+                        df_grouped = df.groupby('Reported Date', as_index=False).agg({
+                            'Arrivals (Tonnes)': 'sum',
+                            'Modal Price (Rs./Quintal)': 'mean'
+                        })
+        
                     # Create a complete date range
                     date_range = pd.date_range(
                         start=df_grouped['Reported Date'].min(),
                         end=df_grouped['Reported Date'].max()
                     )
                     df_grouped = df_grouped.set_index('Reported Date').reindex(date_range).rename_axis('Reported Date').reset_index()
-
+        
                     # Fill missing values
                     df_grouped['Arrivals (Tonnes)'] = df_grouped['Arrivals (Tonnes)'].fillna(method='ffill').fillna(method='bfill')
                     df_grouped['Modal Price (Rs./Quintal)'] = df_grouped['Modal Price (Rs./Quintal)'].fillna(method='ffill').fillna(method='bfill')
-
+        
                     st.subheader(f"📈 Trends for {selected_state} ({'Market: ' + selected_market if market_wise else 'State'})")
-
+        
                     if data_type == "Both":
                         # Min-Max Scaling
                         scaler = MinMaxScaler()
                         df_grouped[['Scaled Price', 'Scaled Arrivals']] = scaler.fit_transform(
                             df_grouped[['Modal Price (Rs./Quintal)', 'Arrivals (Tonnes)']]
                         )
-
+        
                         fig = go.Figure()
-
+        
                         fig.add_trace(go.Scatter(
                             x=df_grouped['Reported Date'],
                             y=df_grouped['Scaled Price'],
@@ -1497,7 +1509,7 @@ if st.session_state.authenticated:
                             text=df_grouped['Modal Price (Rs./Quintal)'],
                             hovertemplate='Date: %{x}<br>Scaled Price: %{y:.2f}<br>Actual Price: %{text:.2f}<extra></extra>'
                         ))
-
+        
                         fig.add_trace(go.Scatter(
                             x=df_grouped['Reported Date'],
                             y=df_grouped['Scaled Arrivals'],
@@ -1507,7 +1519,7 @@ if st.session_state.authenticated:
                             text=df_grouped['Arrivals (Tonnes)'],
                             hovertemplate='Date: %{x}<br>Scaled Arrivals: %{y:.2f}<br>Actual Arrivals: %{text:.2f}<extra></extra>'
                         ))
-
+        
                         fig.update_layout(
                             title="Price and Arrivals Trend",
                             xaxis_title='Date',
@@ -1515,7 +1527,7 @@ if st.session_state.authenticated:
                             template='plotly_white'
                         )
                         st.plotly_chart(fig, use_container_width=True)
-
+        
                     elif data_type == "Price":
                         # Plot Modal Price
                         fig = go.Figure()
@@ -1528,7 +1540,7 @@ if st.session_state.authenticated:
                         ))
                         fig.update_layout(title="Modal Price Trend", xaxis_title='Date', yaxis_title='Price', template='plotly_white')
                         st.plotly_chart(fig, use_container_width=True)
-
+        
                     elif data_type == "Volume":
                         # Plot Arrivals (Tonnes)
                         fig = go.Figure()
@@ -1541,13 +1553,12 @@ if st.session_state.authenticated:
                         ))
                         fig.update_layout(title="Arrivals Trend", xaxis_title='Date', yaxis_title='Volume', template='plotly_white')
                         st.plotly_chart(fig, use_container_width=True)
-
+        
                 else:
                     st.warning("⚠️ No data found for the selected filters.")
-
+        
             except Exception as e:
                 st.error(f"❌ Error fetching data: {e}")
-
     elif view_mode == "Predictions":
         st.subheader("📊 Model Analysis")
         sub_option = st.radio("Select one of the following", ["India", "States", "Market"], horizontal=True)
