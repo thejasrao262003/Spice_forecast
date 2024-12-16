@@ -1128,11 +1128,10 @@ def editable_spreadsheet():
         input_region = st.text_input("Enter Region", placeholder="Region Name")
         input_season = st.text_input("Enter Season", placeholder="Season (e.g., Winter)")
         input_area = st.number_input("Enter Area (in hectares)", min_value=0.0, format="%.2f")
-        submit_button = st.form_submit_button(label='Submit')
+        submit_button = st.form_submit_button(label='Calculate Production')
 
-    # Only initialize the DataFrame and configure the grid when the form is submitted
-    if submit_button:
-        # Initialize DataFrame for the grid
+    # Initialize DataFrame for the grid, if not already in session state
+    if 'df' not in st.session_state:
         data = {
             "Region": [None] * 60,
             "Year": [None] * 60,
@@ -1141,45 +1140,47 @@ def editable_spreadsheet():
             "Production": [None] * 60,
             "Yield": [None] * 60,
         }
-        df = pd.DataFrame(data)
+        st.session_state.df = pd.DataFrame(data)
 
-        # Define dropdown options
-        region_options = ["India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
-        season_options = ["Winter", "Spring", "Summer", "Autumn"]
+    # Define dropdown options
+    region_options = ["India", "Karnataka", "Gujarat", "Rajasthan", "Madhya Pradesh", "Uttar Pradesh", "Telangana"]
+    season_options = ["Winter", "Spring", "Summer", "Autumn"]
 
-        # Setup grid options
-        gb = GridOptionsBuilder.from_dataframe(df)
-        gb.configure_column("Region", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": region_options})
-        gb.configure_column("Year", editable=True)
-        gb.configure_column("Season", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": season_options})
-        gb.configure_column("Area", editable=True)
-        gb.configure_column("Production", editable=True)
-        gb.configure_column("Yield", editable=True)
-        grid_options = gb.build()
+    # Setup grid options
+    gb = GridOptionsBuilder.from_dataframe(st.session_state.df)
+    gb.configure_column("Region", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": region_options})
+    gb.configure_column("Year", editable=True)
+    gb.configure_column("Season", editable=True, cellEditor="agSelectCellEditor", cellEditorParams={"values": season_options})
+    gb.configure_column("Area", editable=True)
+    gb.configure_column("Production", editable=True)
+    gb.configure_column("Yield", editable=True)
+    grid_options = gb.build()
 
-        # Display the grid
-        grid_response = AgGrid(
-            df,
-            gridOptions=grid_options,
-            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-            update_mode=GridUpdateMode.MODEL_CHANGED,
-            fit_columns_on_grid_load=True,
-            enable_enterprise_modules=False,
-            height=600  # Adjust as needed to fit the display
-        )
+    # Display the grid
+    grid_response = AgGrid(
+        st.session_state.df,
+        gridOptions=grid_options,
+        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+        update_mode=GridUpdateMode.MODEL_CHANGED,
+        fit_columns_on_grid_load=True,
+        enable_enterprise_modules=False,
+        height=600  # Adjust as needed to fit the display
+    )
 
-        # Use a button outside the form to trigger calculations
-        if st.button("Calculate Production"):
-            updated_df = pd.DataFrame(grid_response["data"])
-            updated_df.dropna(subset=['Region', 'Season', 'Year', 'Area', 'Yield', 'Production'], inplace=True)
+    # Update the DataFrame in session state after any change in the grid
+    st.session_state.df = pd.DataFrame(grid_response["data"])
 
-            # Calculate average yield and predict production
-            if not updated_df.empty:
-                average_yield = updated_df['Yield'].mean()
-                predicted_production = average_yield * input_area
-                st.success(f"The predicted Production Volume is: {predicted_production:.2f} units")
-            else:
-                st.error("No valid data available to calculate average yield and production.")
+    # Perform calculation upon form submission
+    if submit_button:
+        # Clean and process the DataFrame
+        processed_df = st.session_state.df.dropna(subset=['Region', 'Season', 'Year', 'Area', 'Yield', 'Production'])
+        if not processed_df.empty and processed_df['Yield'].dtype != object:
+            average_yield = processed_df['Yield'].mean()
+            predicted_production = average_yield * input_area
+            st.success(f"The predicted Production Volume based on the input area is: {predicted_production:.2f} units")
+        else:
+            st.error("No valid data available to calculate average yield and production.")
+
 
 
 
