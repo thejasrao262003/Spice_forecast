@@ -1152,7 +1152,6 @@ def editable_spreadsheet():
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         update_mode=GridUpdateMode.MODEL_CHANGED,
         fit_columns_on_grid_load=True,
-        theme="light",
         enable_enterprise_modules=False,
     )
 
