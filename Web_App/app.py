@@ -1228,6 +1228,61 @@ def display_statistics(df):
     national_data = national_data.sort_values(by='Reported Date', ascending=False)
     st.dataframe(national_data.head(14).reset_index(drop=True), use_container_width=True, height=525)
 
+    # Interactive Table for User Input
+    st.subheader("📋 Add Agricultural Data")
+
+    # Initial data for the table
+    regions = ['India', 'Karnataka', 'Gujarat', 'Rajasthan', 'Madhya Pradesh', 'Uttar Pradesh', 'Telangana']
+    initial_data = {
+        "Region": [regions[0]] * 5,
+        "Year": [""] * 5,
+        "Season": [""] * 5,
+        "Area": [""] * 5,
+        "Production": [""] * 5,
+        "Yield": [""] * 5
+    }
+
+    # Initialize session state for the table data
+    if "table_data" not in st.session_state:
+        st.session_state.table_data = pd.DataFrame(initial_data)
+
+    # Display table rows
+    table = st.session_state.table_data
+    new_row = {}
+
+    col1, col2, col3, col4, col5, col6, col7 = st.columns([1.5, 1, 1, 1, 1, 1, 0.5])
+
+    col1.write("**Region**")
+    col2.write("**Year**")
+    col3.write("**Season**")
+    col4.write("**Area**")
+    col5.write("**Production**")
+    col6.write("**Yield**")
+
+    for i in range(len(table)):
+        new_row["Region"] = col1.selectbox("", regions, index=regions.index(table.loc[i, "Region"]), key=f"region_{i}")
+        new_row["Year"] = col2.text_input("", table.loc[i, "Year"], key=f"year_{i}")
+        new_row["Season"] = col3.text_input("", table.loc[i, "Season"], key=f"season_{i}")
+        new_row["Area"] = col4.text_input("", table.loc[i, "Area"], key=f"area_{i}")
+        new_row["Production"] = col5.text_input("", table.loc[i, "Production"], key=f"production_{i}")
+        new_row["Yield"] = col6.text_input("", table.loc[i, "Yield"], key=f"yield_{i}")
+
+    # Add row button
+    if col7.button("+ Add Row", key="add_row"):
+        st.session_state.table_data = pd.concat([table, pd.DataFrame({
+            "Region": [regions[0]],
+            "Year": [""],
+            "Season": [""],
+            "Area": [""],
+            "Production": [""],
+            "Yield": [""]
+        })], ignore_index=True)
+
+    # Table Data
+    st.write("**Updated Data**")
+    st.dataframe(st.session_state.table_data, use_container_width=True)
+    
+
 def fetch_and_store_data():
     latest_doc = collection.find_one(sort=[("Reported Date", -1)])
     if latest_doc and "Reported Date" in latest_doc:
