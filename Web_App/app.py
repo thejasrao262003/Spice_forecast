@@ -1591,7 +1591,7 @@ if st.session_state.authenticated:
                             name='Modal Price',
                             line=dict(width=1, color='green')
                         ))
-                        fig.update_layout(title="Modal Price Trend", xaxis_title='Date', yaxis_title='Price', template='plotly_white')
+                        fig.update_layout(title="Modal Price Trend", xaxis_title='Date', yaxis_title='Price (/Quintall)', template='plotly_white')
                         st.plotly_chart(fig, use_container_width=True)
         
                     elif data_type == "Volume":
@@ -1604,7 +1604,7 @@ if st.session_state.authenticated:
                             name='Arrivals',
                             line=dict(width=1, color='blue')
                         ))
-                        fig.update_layout(title="Arrivals Trend", xaxis_title='Date', yaxis_title='Volume', template='plotly_white')
+                        fig.update_layout(title="Arrivals Trend", xaxis_title='Date', yaxis_title='Volume (in Tonnes)', template='plotly_white')
                         st.plotly_chart(fig, use_container_width=True)
         
                 else:
