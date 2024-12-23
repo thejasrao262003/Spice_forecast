@@ -338,7 +338,7 @@ def train_and_evaluate(df):
 
 
 
-def forecast_next_14_days(df, _best_params):
+def forecast_next_14_days(df, _best_params, key):
     last_date = df['Reported Date'].max()
     future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=14)
     future_df = pd.DataFrame({'Reported Date': future_dates})
@@ -362,7 +362,7 @@ def forecast_next_14_days(df, _best_params):
 
     # Pass model to plot_data
     plot_data(original_df, future_df, last_date, model)
-    download_button(future_df)
+    download_button(future_df, key)
 
 def plot_data(original_df, future_df, last_date, model):
     actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
@@ -385,7 +385,7 @@ def plot_data(original_df, future_df, last_date, model):
     fig.update_layout(title="Actual vs Forecasted Modal Price (Rs./Quintal)", xaxis_title="Date", yaxis_title="Modal Price (Rs./Quintal)", template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
 
-def download_button(future_df):
+def download_button(future_df, key):
     # Create a new DataFrame with only 'Reported Date' and 'Modal Price (Rs./Quintal)'
     download_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
 
@@ -400,7 +400,7 @@ def download_button(future_df):
     # Create a download button for the Excel file
     st.download_button(label="Download Forecasted Values",
                        data=towrite,
-                       file_name='forecasted_prices.xlsx',
+                       file_name=f'forecasted_prices_{key}.xlsx',
                        mime='application/vnd.ms-excel')
 
 
@@ -438,14 +438,14 @@ def train_and_forecast(df, filter_key):
         # Train the model and save parameters to MongoDB
         best_params = train_and_evaluate(df)
         save_best_params(filter_key, best_params)
-        forecast_next_14_days(df, best_params)
+        forecast_next_14_days(df, best_params, filter_key)
 
 # Function to forecast using stored best_params
 def forecast(df, filter_key):
     record = get_best_params(filter_key)
     if record:
         st.info(f"ℹ️ The model was trained on {record['last_updated']}.")
-        forecast_next_14_days(df, record)
+        forecast_next_14_days(df, record, filter_key)
     else:
         st.warning("⚠️ Model is not trained yet. Please train the model first.")
 
