@@ -346,9 +346,10 @@ def forecast_next_14_days(df, _best_params):
     # Concatenate future_df with the original dataframe
     full_df = pd.concat([df, future_df], ignore_index=True)
 
+    # Assuming 'create_forecasting_features' function is defined elsewhere
     full_df = create_forecasting_features(full_df)
 
-    # Step 3: Split data back into original and future sets
+    # Split data back into original and future sets
     original_df = full_df[full_df['Reported Date'] <= last_date]
     future_df = full_df[full_df['Reported Date'] > last_date]
 
@@ -356,62 +357,54 @@ def forecast_next_14_days(df, _best_params):
     X_train = original_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
     y_train = original_df['Modal Price (Rs./Quintal)']
 
-    # Prepare the dataset for forecasting
+    # Dataset for forecasting
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
-    # Step 4: Train the model with the best parameters on the full dataset
+    # Train the model
     model = XGBRegressor(**_best_params)
     model.fit(X_train, y_train)
 
-    # Step 5: Forecast for the next 14 days
+    # Forecasting
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
-    # Get last 14 actual values for comparison
-    actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
+    # Plotting
+    plot_data(original_df, future_df, last_date)
 
-    # Predicted data (using the last 14 actual values)
+    # Convert future_df to an Excel file for download
+    download_button(future_df)
+
+def plot_data(original_df, future_df, last_date):
+    actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
     predicted_plot_df = actual_last_14_df[['Reported Date']].copy()
     predicted_plot_df['Modal Price (Rs./Quintal)'] = model.predict(
         actual_last_14_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
     predicted_plot_df['Type'] = 'Actual'
 
-    # Forecasted future data
     future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
     future_plot_df['Type'] = 'Forecasted'
-
-    # Add the last actual point to the forecasted data for continuity
     last_actual_point = predicted_plot_df.iloc[[-1]].copy()
     last_actual_point['Type'] = 'Forecasted'
     future_plot_df = pd.concat([last_actual_point, future_plot_df])
-
-    # Concatenate all relevant data for plotting
     plot_df = pd.concat([predicted_plot_df, future_plot_df])
 
-    # Plot the data using Plotly
     fig = go.Figure()
-
     for plot_type, color, dash in [('Actual', 'blue', 'solid'), ('Forecasted', 'red', 'dash')]:
         data = plot_df[plot_df['Type'] == plot_type]
-        fig.add_trace(go.Scatter(
-            x=data['Reported Date'],
-            y=data['Modal Price (Rs./Quintal)'],
-            mode='lines',
-            name=f"{plot_type} Data",
-            line=dict(color=color, dash=dash)
-        ))
-
-    fig.update_layout(
-        title="Actual vs Forecasted Modal Price (Rs./Quintal)",
-        xaxis_title="Date",
-        yaxis_title="Modal Price (Rs./Quintal)",
-        template="plotly_white"
-    )
-
+        fig.add_trace(go.Scatter(x=data['Reported Date'], y=data['Modal Price (Rs./Quintal)'], mode='lines', name=f"{plot_type} Data", line=dict(color=color, dash=dash)))
+    fig.update_layout(title="Actual vs Forecasted Modal Price (Rs./Quintal)", xaxis_title="Date", yaxis_title="Modal Price (Rs./Quintal)", template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
 
-    st.success("Forecasting for the next 14 days successfully completed!")
-
+def download_button(future_df):
+    # Filter columns to include only 'Reported Date' and 'Modal Price (Rs./Quintal)'
+    download_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']]
+    towrite = io.BytesIO()
+    download_df.to_excel(towrite, index=False, engine='xlsxwriter')
+    towrite.seek(0)
+    st.download_button(label="Download Forecasted Values",
+                       data=towrite,
+                       file_name='forecasted_prices.xlsx',
+                       mime='application/vnd.ms-excel')
 
 
 def fetch_and_process_data(query_filter):
