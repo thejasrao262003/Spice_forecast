@@ -338,43 +338,32 @@ def train_and_evaluate(df):
 
 
 def forecast_next_14_days(df, _best_params):
-    # Step 1: Create the future dataframe for the next 14 days
     last_date = df['Reported Date'].max()
     future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=14)
     future_df = pd.DataFrame({'Reported Date': future_dates})
-
-    # Concatenate future_df with the original dataframe
-    full_df = pd.concat([df, future_df], ignore_index=True)
-
+    
     # Assuming 'create_forecasting_features' function is defined elsewhere
+    full_df = pd.concat([df, future_df], ignore_index=True)
     full_df = create_forecasting_features(full_df)
 
-    # Split data back into original and future sets
     original_df = full_df[full_df['Reported Date'] <= last_date]
     future_df = full_df[full_df['Reported Date'] > last_date]
 
-    # Prepare the training dataset
     X_train = original_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
     y_train = original_df['Modal Price (Rs./Quintal)']
-
-    # Dataset for forecasting
     X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
 
-    # Train the model
     model = XGBRegressor(**_best_params)
     model.fit(X_train, y_train)
 
-    # Forecasting
     future_predictions = model.predict(X_future)
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
-    # Plotting
-    plot_data(original_df, future_df, last_date)
-
-    # Convert future_df to an Excel file for download
+    # Pass model to plot_data
+    plot_data(original_df, future_df, last_date, model)
     download_button(future_df)
 
-def plot_data(original_df, future_df, last_date):
+def plot_data(original_df, future_df, last_date, model):
     actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
     predicted_plot_df = actual_last_14_df[['Reported Date']].copy()
     predicted_plot_df['Modal Price (Rs./Quintal)'] = model.predict(
@@ -396,15 +385,11 @@ def plot_data(original_df, future_df, last_date):
     st.plotly_chart(fig, use_container_width=True)
 
 def download_button(future_df):
-    # Filter columns to include only 'Reported Date' and 'Modal Price (Rs./Quintal)'
     download_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']]
     towrite = io.BytesIO()
     download_df.to_excel(towrite, index=False, engine='xlsxwriter')
     towrite.seek(0)
-    st.download_button(label="Download Forecasted Values",
-                       data=towrite,
-                       file_name='forecasted_prices.xlsx',
-                       mime='application/vnd.ms-excel')
+    st.download_button(label="Download Forecasted Values", data=towrite, file_name='forecasted_prices.xlsx', mime='application/vnd.ms-excel')
 
 
 def fetch_and_process_data(query_filter):
