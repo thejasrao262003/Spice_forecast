@@ -386,11 +386,14 @@ def plot_data(original_df, future_df, last_date, model):
     st.plotly_chart(fig, use_container_width=True)
 
 def download_button(future_df):
-    download_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']]
+    download_df = future_df.copy()
+    download_df['Reported Date'] = download_df['Reported Date'].dt.strftime('%Y-%m-%d')
+    
     towrite = io.BytesIO()
     download_df.to_excel(towrite, index=False, engine='xlsxwriter')
     towrite.seek(0)
     st.download_button(label="Download Forecasted Values", data=towrite, file_name='forecasted_prices.xlsx', mime='application/vnd.ms-excel')
+
 
 
 def fetch_and_process_data(query_filter):
