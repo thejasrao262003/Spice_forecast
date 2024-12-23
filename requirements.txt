@@ -16,3 +16,4 @@ selenium
 webdriver-manager
 streamlit-aggrid
 openpyxl
+xlsxwriter
