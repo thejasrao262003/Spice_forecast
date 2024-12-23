@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 import json
 from itertools import product
 from tqdm import tqdm
+import io
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 mongo_uri = st.secrets["MONGO_URI"]
