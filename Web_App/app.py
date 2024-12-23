@@ -386,13 +386,22 @@ def plot_data(original_df, future_df, last_date, model):
     st.plotly_chart(fig, use_container_width=True)
 
 def download_button(future_df):
-    download_df = future_df.copy()
+    # Create a new DataFrame with only 'Reported Date' and 'Modal Price (Rs./Quintal)'
+    download_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
+
+    # Format 'Reported Date' to display only the date in YYYY-MM-DD format
     download_df['Reported Date'] = download_df['Reported Date'].dt.strftime('%Y-%m-%d')
-    
+
+    # Write to Excel without the index
     towrite = io.BytesIO()
-    download_df.to_excel(towrite, index=False, engine='xlsxwriter')
+    download_df.to_excel(towrite, index=False, engine='xlsxwriter')  # Using 'xlsxwriter' for the Excel engine
     towrite.seek(0)
-    st.download_button(label="Download Forecasted Values", data=towrite, file_name='forecasted_prices.xlsx', mime='application/vnd.ms-excel')
+
+    # Create a download button for the Excel file
+    st.download_button(label="Download Forecasted Values",
+                       data=towrite,
+                       file_name='forecasted_prices.xlsx',
+                       mime='application/vnd.ms-excel')
 
 
 
