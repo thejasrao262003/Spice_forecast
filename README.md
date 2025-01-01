@@ -58,12 +58,6 @@
 3. Explore interactive visualizations for market predictions.  
 4. Use statistical insights for strategic trading decisions.  
 
-## Contribution  
-Contributions are welcome! Please fork the repository, make your changes, and submit a pull request.  
-
-## License  
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.  
-
 ## Contact  
 For inquiries, reach out via:  
 - **Email**: thejasrao262003@gmail.com 
