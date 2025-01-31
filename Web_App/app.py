@@ -1063,7 +1063,8 @@ if st.session_state.authenticated:
                 .rename(columns={"QUANTITY_IMPORT": "Total Export Quantity"})
             )
             y_axis_label = "Total Export Quantity (Tonnes)"
-    
+        last_reported_date = filtered_df["Reported Date"].max()
+        st.write(f"Last reported date for {plot_option}: {last_reported_date.strftime('%Y-%m-%d')}")
         # Plot using Plotly
         fig = px.line(
             grouped_df,
