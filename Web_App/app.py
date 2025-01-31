@@ -1415,7 +1415,7 @@ if st.session_state.authenticated:
                     df = fetch_and_process_data(query_filter)
                     if sub_timeline == "14 days":
                         forecast(df, "India", 14)
-                    elif if sub_timeline == "1 month":
+                    elif sub_timeline == "1 month":
                         forecast(df, "India", 30)
                     else:
                         forecast(df, "India", 90)
