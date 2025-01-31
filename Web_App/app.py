@@ -31,6 +31,8 @@ else:
     db = client["AgriPredict"]
     collection = db["WhiteSesame"]
     best_params_collection = db["BestParams"]
+    best_params_collection_1m = db["BestParams_1m"]
+    best_params_collection_3m = db["BestParams_3m"]
     impExp = db["impExp"]
     users_collection = db["user"]
 
@@ -196,6 +198,95 @@ def create_forecasting_features(df):
 
     return df.reset_index()
 
+def create_forecasting_features_1m(df):
+    df = df.copy()
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df = df.set_index('Reported Date')
+        df.index = pd.to_datetime(df.index)
+
+    target_map = df['Modal Price (Rs./Quintal)'].to_dict()
+
+    df['dayofweek'] = df.index.dayofweek
+    df['quarter'] = df.index.quarter
+    df['month'] = df.index.month
+    df['year'] = df.index.year
+    df['dayofyear'] = df.index.dayofyear
+    df['weekofyear'] = df.index.isocalendar().week
+
+    df['lag_30'] = (df.index - pd.Timedelta(days=30)).map(target_map)
+    df['lag_60'] = (df.index - pd.Timedelta(days=60)).map(target_map)
+    df['lag_90'] = (df.index - pd.Timedelta(days=90)).map(target_map)
+    df['lag_6months'] = (df.index - pd.DateOffset(months=6)).map(target_map)
+    df['lag_12months'] = (df.index - pd.DateOffset(months=12)).map(target_map)
+
+    for window in [30, 60, 90]:
+        df[f'rolling_mean_{window}'] = df['Modal Price (Rs./Quintal)'].rolling(window=window, min_periods=1).mean()
+        df[f'rolling_std_{window}'] = df['Modal Price (Rs./Quintal)'].rolling(window=window, min_periods=1).std()
+
+    df['ema_30'] = df['Modal Price (Rs./Quintal)'].ewm(span=30, adjust=False).mean()
+    df['ema_60'] = df['Modal Price (Rs./Quintal)'].ewm(span=60, adjust=False).mean()
+
+    df['monthly_avg'] = df.groupby('month')['Modal Price (Rs./Quintal)'].transform('mean')
+    df['weekly_avg'] = df.groupby('weekofyear')['Modal Price (Rs./Quintal)'].transform('mean')
+    df['dayofweek_avg'] = df.groupby('dayofweek')['Modal Price (Rs./Quintal)'].transform('mean')
+
+    df['fourier_sin_365'] = np.sin(2 * np.pi * df.index.dayofyear / 365)
+    df['fourier_cos_365'] = np.cos(2 * np.pi * df.index.dayofyear / 365)
+    df['fourier_sin_30'] = np.sin(2 * np.pi * df.index.dayofyear / 30)
+    df['fourier_cos_30'] = np.cos(2 * np.pi * df.index.dayofyear / 30)
+
+    df['recent_min_30'] = (df.index - pd.Timedelta(days=30)).map(target_map).min()
+    df['recent_max_30'] = (df.index - pd.Timedelta(days=30)).map(target_map).max()
+    df['recent_range_30'] = df['recent_max_30'] - df['recent_min_30']
+
+    df['yearly_avg'] = df.groupby('year')['Modal Price (Rs./Quintal)'].transform('mean')
+    df['cumulative_mean'] = df['Modal Price (Rs./Quintal)'].expanding().mean()
+
+    return df.reset_index()
+
+def create_forecasting_features_3m(df):
+    df = df.copy()
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df = df.set_index('Reported Date')
+        df.index = pd.to_datetime(df.index)
+
+    target_map = df['Modal Price (Rs./Quintal)'].to_dict()
+
+    df['dayofweek'] = df.index.dayofweek
+    df['quarter'] = df.index.quarter
+    df['month'] = df.index.month
+    df['year'] = df.index.year
+    df['dayofyear'] = df.index.dayofyear
+    df['weekofyear'] = df.index.isocalendar().week
+
+    df['lag_3months'] = (df.index - pd.DateOffset(months=3)).map(target_map)
+    df['lag_6months'] = (df.index - pd.DateOffset(months=6)).map(target_map)
+    df['lag_9months'] = (df.index - pd.DateOffset(months=9)).map(target_map)
+    df['lag_12months'] = (df.index - pd.DateOffset(months=12)).map(target_map)
+
+    for window in [90, 180, 270, 365]:
+        df[f'rolling_mean_{window}'] = df['Modal Price (Rs./Quintal)'].rolling(window=window, min_periods=1).mean()
+        df[f'rolling_std_{window}'] = df['Modal Price (Rs./Quintal)'].rolling(window=window, min_periods=1).std()
+
+    df['ema90'] = df['Modal Price (Rs./Quintal)'].ewm(span=90, adjust=False).mean()
+    df['ema180'] = df['Modal Price (Rs./Quintal)'].ewm(span=180, adjust=False).mean()
+    df['monthly_avg'] = df.groupby('month')['Modal Price (Rs./Quintal)'].transform('mean')
+    df['weekly_avg'] = df.groupby('weekofyear')['Modal Price (Rs./Quintal)'].transform('mean')
+    df['dayofweek_avg'] = df.groupby('dayofweek')['Modal Price (Rs./Quintal)'].transform('mean')
+
+    df['fourier_sin_90'] = np.sin(2 * np.pi * df.index.dayofyear / 90)
+    df['fourier_cos_90'] = np.cos(2 * np.pi * df.index.dayofyear / 90)
+    df['fourier_sin_30'] = np.sin(2 * np.pi * df.index.dayofyear / 30)
+    df['fourier_cos_30'] = np.cos(2 * np.pi * df.index.dayofyear / 30)
+
+    df['recent_min_90'] = (df.index - pd.Timedelta(days=90)).map(target_map).min()
+    df['recent_max_90'] = (df.index - pd.Timedelta(days=90)).map(target_map).max()
+    df['recent_range_90'] = df['recent_max_90'] - df['recent_min_90']
+
+    df['yearly_avg'] = df.groupby('year')['Modal Price (Rs./Quintal)'].transform('mean')
+    df['cumulative_mean'] = df['Modal Price (Rs./Quintal)'].expanding().mean()
+
+    return df.reset_index()
 
 
 def preprocess_data(df):
@@ -336,7 +427,246 @@ def train_and_evaluate(df):
     # Return best parameters
     return best_params
 
+def train_and_evaluate_1m(df):
+    import streamlit as st
+    import pandas as pd
+    import plotly.graph_objects as go
+    from xgboost import XGBRegressor
+    from sklearn.metrics import mean_squared_error, mean_absolute_error
+    
+    # Add progress bar for hyperparameter tuning
+    progress_bar = st.progress(0)
 
+    # Helper function to update progress during hyperparameter tuning
+    def update_tuning_progress(current, total):
+        progress = int((current / total) * 100)
+        progress_bar.progress(progress)
+    
+    df = create_forecasting_features_1m(df)
+    
+    # Define train-test split for a 1-month horizon
+    split_date = pd.to_datetime("2024-01-01")
+    test_horizon = pd.DateOffset(days=30)  # 1-month horizon
+    
+    train_df = df[df['Reported Date'] < split_date]
+    test_df = df[(df['Reported Date'] >= split_date) & (df['Reported Date'] < split_date + test_horizon)]
+
+    X_train = train_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'])
+    y_train = train_df['Modal Price (Rs./Quintal)']
+    X_test = test_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'])
+    y_test = test_df['Modal Price (Rs./Quintal)']
+
+    # Hyperparameter tuning
+    st.write("Performing hyperparameter tuning...")
+    param_grid = {
+        'learning_rate': [0.01, 0.1, 0.2],
+        'max_depth': [3, 5, 7],
+        'n_estimators': [50, 100, 150],
+        'booster': ['gbtree', 'dart']
+    }
+
+    model = XGBRegressor()
+    param_combinations = len(param_grid['learning_rate']) * len(param_grid['max_depth']) * \
+                         len(param_grid['n_estimators']) * len(param_grid['booster'])
+
+    current_combination = 0  # Counter for combinations
+
+    def custom_grid_search():
+        nonlocal current_combination
+        best_score = float('-inf')
+        best_params = None
+        for learning_rate in param_grid['learning_rate']:
+            for max_depth in param_grid['max_depth']:
+                for n_estimators in param_grid['n_estimators']:
+                    for booster in param_grid['booster']:
+                        model.set_params(
+                            learning_rate=learning_rate,
+                            max_depth=max_depth,
+                            n_estimators=n_estimators,
+                            booster=booster
+                        )
+                        model.fit(X_train, y_train)
+                        score = model.score(X_test, y_test)
+                        if score > best_score:
+                            best_score = score
+                            best_params = {
+                                'learning_rate': learning_rate,
+                                'max_depth': max_depth,
+                                'n_estimators': n_estimators,
+                                'booster': booster
+                            }
+                        # Update progress bar
+                        current_combination += 1
+                        update_tuning_progress(current_combination, param_combinations)
+        return best_params
+
+    best_params = custom_grid_search()
+
+    # Train the best model with the identified parameters
+    st.write("Training the best model and making predictions...")
+    best_model = XGBRegressor(**best_params)
+    best_model.fit(X_train, y_train)
+    y_pred = best_model.predict(X_test)
+
+    # Metrics
+    rmse = mean_squared_error(y_test, y_pred, squared=False)
+    mae = mean_absolute_error(y_test, y_pred)
+    st.write(f"RMSE: {rmse}")
+    st.write(f"MAE: {mae}")
+
+    # Prepare data for plotting
+    train_plot_df = train_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
+    train_plot_df['Type'] = 'Train'
+
+    test_plot_df = test_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
+    test_plot_df['Type'] = 'Test'
+
+    predicted_plot_df = test_df[['Reported Date']].copy()
+    predicted_plot_df['Modal Price (Rs./Quintal)'] = y_pred
+    predicted_plot_df['Type'] = 'Predicted'
+
+    plot_df = pd.concat([train_plot_df, test_plot_df, predicted_plot_df])
+
+    fig = go.Figure()
+
+    for plot_type, color, dash in [('Train', 'blue', None), ('Test', 'orange', None),
+                                   ('Predicted', 'green', 'dot')]:
+        data = plot_df[plot_df['Type'] == plot_type]
+        fig.add_trace(go.Scatter(
+            x=data['Reported Date'],
+            y=data['Modal Price (Rs./Quintal)'],
+            mode='lines',
+            name=f"{plot_type} Data",
+            line=dict(color=color, dash=dash)
+        ))
+
+    fig.update_layout(
+        title="Train, Test, and Predicted Data",
+        xaxis_title="Date",
+        yaxis_title="Modal Price (Rs./Quintal)",
+        template="plotly_white"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Return best parameters
+    return best_params
+
+def train_and_evaluate_3m(df):
+    import streamlit as st
+
+    # Add progress bar for hyperparameter tuning
+    progress_bar = st.progress(0)
+
+    # Helper function to update progress during hyperparameter tuning
+    def update_tuning_progress(current, total):
+        progress = int((current / total) * 100)
+        progress_bar.progress(progress)
+
+    df = create_forecasting_features_3m(df)
+    train_df = df[df['Reported Date'] < '2023-10-01']
+    test_df = df[df['Reported Date'] >= '2023-10-01']
+
+    X_train = train_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'])
+    y_train = train_df['Modal Price (Rs./Quintal)']
+    X_test = test_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'])
+    y_test = test_df['Modal Price (Rs./Quintal)']
+
+    # Hyperparameter tuning
+    st.write("Performing hyperparameter tuning...")
+    param_grid = {
+        'learning_rate': [0.01, 0.1, 0.2],
+        'max_depth': [3, 5, 7],
+        'n_estimators': [50, 100, 150],
+        'booster': ['gbtree', 'dart']
+    }
+
+    model = XGBRegressor()
+    param_combinations = len(param_grid['learning_rate']) * len(param_grid['max_depth']) * \
+                         len(param_grid['n_estimators']) * len(param_grid['booster'])
+
+    current_combination = 0  # Counter for combinations
+
+    def custom_grid_search():
+        nonlocal current_combination
+        best_score = float('-inf')
+        best_params = None
+        for learning_rate in param_grid['learning_rate']:
+            for max_depth in param_grid['max_depth']:
+                for n_estimators in param_grid['n_estimators']:
+                    for booster in param_grid['booster']:
+                        model.set_params(
+                            learning_rate=learning_rate,
+                            max_depth=max_depth,
+                            n_estimators=n_estimators,
+                            booster=booster
+                        )
+                        model.fit(X_train, y_train)
+                        score = model.score(X_test, y_test)
+                        if score > best_score:
+                            best_score = score
+                            best_params = {
+                                'learning_rate': learning_rate,
+                                'max_depth': max_depth,
+                                'n_estimators': n_estimators,
+                                'booster': booster
+                            }
+                        # Update progress bar
+                        current_combination += 1
+                        update_tuning_progress(current_combination, param_combinations)
+        return best_params
+
+    best_params = custom_grid_search()
+
+    # Train the best model with the identified parameters
+    st.write("Training the best model and making predictions...")
+    best_model = XGBRegressor(**best_params)
+    best_model.fit(X_train, y_train)
+    y_pred = best_model.predict(X_test)
+
+    # Metrics
+    rmse = mean_squared_error(y_test, y_pred, squared=False)
+    mae = mean_absolute_error(y_test, y_pred)
+    st.write(f"RMSE: {rmse}")
+    st.write(f"MAE: {mae}")
+
+    # Prepare data for plotting
+    train_plot_df = train_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
+    train_plot_df['Type'] = 'Train'
+
+    test_plot_df = test_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
+    test_plot_df['Type'] = 'Test'
+
+    predicted_plot_df = test_df[['Reported Date']].copy()
+    predicted_plot_df['Modal Price (Rs./Quintal)'] = y_pred
+    predicted_plot_df['Type'] = 'Predicted'
+
+    plot_df = pd.concat([train_plot_df, test_plot_df, predicted_plot_df])
+
+    fig = go.Figure()
+
+    for plot_type, color, dash in [('Train', 'blue', None), ('Test', 'orange', None),
+                                   ('Predicted', 'green', 'dot')]:
+        data = plot_df[plot_df['Type'] == plot_type]
+        fig.add_trace(go.Scatter(
+            x=data['Reported Date'],
+            y=data['Modal Price (Rs./Quintal)'],
+            mode='lines',
+            name=f"{plot_type} Data",
+            line=dict(color=color, dash=dash)
+        ))
+
+    fig.update_layout(
+        title="Train, Test, and Predicted Data",
+        xaxis_title="Date",
+        yaxis_title="Modal Price (Rs./Quintal)",
+        template="plotly_white"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Return best parameters
+    return best_params
 
 def forecast_next_14_days(df, _best_params, key):
     last_date = df['Reported Date'].max()
@@ -361,14 +691,66 @@ def forecast_next_14_days(df, _best_params, key):
     future_df['Modal Price (Rs./Quintal)'] = future_predictions
 
     # Pass model to plot_data
-    plot_data(original_df, future_df, last_date, model)
+    plot_data(original_df, future_df, last_date, model, 14)
+    download_button(future_df, key)
+    
+def forecast_next_30_days(df, _best_params, key):
+    last_date = df['Reported Date'].max()
+    future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=30)
+    future_df = pd.DataFrame({'Reported Date': future_dates})
+    
+    # Assuming 'create_forecasting_features' function is defined elsewhere
+    full_df = pd.concat([df, future_df], ignore_index=True)
+    full_df = create_forecasting_features_1m(full_df)
+
+    original_df = full_df[full_df['Reported Date'] <= last_date]
+    future_df = full_df[full_df['Reported Date'] > last_date]
+
+    X_train = original_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
+    y_train = original_df['Modal Price (Rs./Quintal)']
+    X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
+
+    model = XGBRegressor(**_best_params)
+    model.fit(X_train, y_train)
+
+    future_predictions = model.predict(X_future)
+    future_df['Modal Price (Rs./Quintal)'] = future_predictions
+
+    # Pass model to plot_data
+    plot_data(original_df, future_df, last_date, model, 30)
     download_button(future_df, key)
 
-def plot_data(original_df, future_df, last_date, model):
-    actual_last_14_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=14))]
-    predicted_plot_df = actual_last_14_df[['Reported Date']].copy()
+def forecast_next_90_days(df, _best_params, key):
+    last_date = df['Reported Date'].max()
+    future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=90)
+    future_df = pd.DataFrame({'Reported Date': future_dates})
+    
+    # Assuming 'create_forecasting_features' function is defined elsewhere
+    full_df = pd.concat([df, future_df], ignore_index=True)
+    full_df = create_forecasting_features_3m(full_df)
+
+    original_df = full_df[full_df['Reported Date'] <= last_date]
+    future_df = full_df[full_df['Reported Date'] > last_date]
+
+    X_train = original_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
+    y_train = original_df['Modal Price (Rs./Quintal)']
+    X_future = future_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore')
+
+    model = XGBRegressor(**_best_params)
+    model.fit(X_train, y_train)
+
+    future_predictions = model.predict(X_future)
+    future_df['Modal Price (Rs./Quintal)'] = future_predictions
+
+    # Pass model to plot_data
+    plot_data(original_df, future_df, last_date, model, 90)
+    download_button(future_df, key)
+
+def plot_data(original_df, future_df, last_date, model, days):
+    actual_last_df = original_df[original_df['Reported Date'] > (last_date - pd.Timedelta(days=days))]
+    predicted_plot_df = actual_last_df[['Reported Date']].copy()
     predicted_plot_df['Modal Price (Rs./Quintal)'] = model.predict(
-        actual_last_14_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
+        actual_last_df.drop(columns=['Modal Price (Rs./Quintal)', 'Reported Date'], errors='ignore'))
     predicted_plot_df['Type'] = 'Actual'
 
     future_plot_df = future_df[['Reported Date', 'Modal Price (Rs./Quintal)']].copy()
@@ -421,34 +803,60 @@ def fetch_and_process_data(query_filter):
         st.error(f"❌ Error fetching data: {e}")
         return None
 
-# Function to save best_params to MongoDB
-def save_best_params(filter_key, best_params):
+def save_best_params(collection, filter_key, best_params):
     best_params["filter_key"] = filter_key
     best_params["last_updated"] = datetime.now().isoformat()
-    best_params_collection.replace_one({"filter_key": filter_key}, best_params, upsert=True)
+    
+    existing_entry = collection.find_one({"filter_key": filter_key})
+    if existing_entry:
+        collection.replace_one({"filter_key": filter_key}, best_params)
+    else:
+        collection.insert_one(best_params)
 
 # Function to retrieve best_params from MongoDB
-def get_best_params(filter_key):
-    record = best_params_collection.find_one({"filter_key": filter_key})
+def get_best_params(filter_key, collection):
+    record = collection.find_one({"filter_key": filter_key})
     return record
-
 # Function to handle training and forecasting
-def train_and_forecast(df, filter_key):
+def train_and_forecast(df, filter_key, days):
     if df is not None:
         # Train the model and save parameters to MongoDB
-        best_params = train_and_evaluate(df)
-        save_best_params(filter_key, best_params)
-        forecast_next_14_days(df, best_params, filter_key)
+        if days==14:
+            best_params = train_and_evaluate(df)
+            save_best_params(filter_key, best_params, best_params_collection)
+            forecast_next_14_days(df, best_params, filter_key)
+        elif days==30:
+            best_params = train_and_evaluate_1m(df)
+            save_best_params(filter_key, best_params, best_params_collection_1m)
+            forecast_next_30_days(df, best_params, filter_key)
+        elif days==90:
+            best_params = train_and_evaluate_3m(df)
+            save_best_params(filter_key, best_params, best_params_collection_3m)
+            forecast_next_90_days(df, best_params, filter_key)
 
-# Function to forecast using stored best_params
-def forecast(df, filter_key):
-    record = get_best_params(filter_key)
-    if record:
-        st.info(f"ℹ️ The model was trained on {record['last_updated']}.")
-        forecast_next_14_days(df, record, filter_key)
-    else:
-        st.warning("⚠️ Model is not trained yet. Please train the model first.")
-
+def forecast(df, filter_key, days):
+    if days==14:
+        record = get_best_params(filter_key, best_params_collection)
+        if record:
+            st.info(f"ℹ️ The model was trained on {record['last_updated']}.")
+            forecast_next_14_days(df, record, filter_key)
+        else:
+            st.warning("⚠️ Model is not trained yet. Please train the model first.")
+    if days==30:
+        record = get_best_params(filter_key, best_params_collection_1m)
+        if record:
+            st.info(f"ℹ️ The model was trained on {record['last_updated']}.")
+            forecast_next_30_days(df, record, filter_key)
+        else:
+            st.warning("⚠️ Model is not trained yet. Please train the model first.")
+    if days==90:
+        record = get_best_params(filter_key, best_params_collection_3m)
+        if record:
+            st.info(f"ℹ️ The model was trained on {record['last_updated']}.")
+            forecast_next_90_days(df, record, filter_key)
+        else:
+            st.warning("⚠️ Model is not trained yet. Please train the model first.")
+            
 def collection_to_dataframe(collection, drop_id=True):
     """
     Converts a MongoDB collection to a pandas DataFrame.
@@ -821,7 +1229,7 @@ if st.session_state.authenticated:
         st.sidebar.header("Filters")
         selected_period = st.sidebar.selectbox(
             "Select Time Period",
-            ["2 Weeks", "1 Month", "3 Months", "1 Year", "2 Years", "5 Years"],
+            ["2 Weeks", "1 Month", "3 Months", "1 Year", "5 Years"],
             index=1
         )
         period_mapping = {
@@ -970,7 +1378,7 @@ if st.session_state.authenticated:
     elif view_mode == "Predictions":
         st.subheader("📊 Model Analysis")
         sub_option = st.radio("Select one of the following", ["India", "States", "Market"], horizontal=True)
-
+        sub_timeline = st.radio("Select one of the following horizons", ["14 days", "1 month", "3 month"], horizontal=True)
         if sub_option == "States":
             states = ["Karnataka", "Madhya Pradesh", "Gujarat", "Uttar Pradesh", "Telangana"]
             selected_state = st.selectbox("Select State for Model Training", states)
@@ -979,7 +1387,12 @@ if st.session_state.authenticated:
             if st.button("Forecast"):
                 query_filter = {"state": selected_state}
                 df = fetch_and_process_data(query_filter)
-                forecast(df, filter_key)
+                if sub_timeline == "14 days":
+                    forecast(df, filter_key, 14)
+                elif sub_timeline == "1 month":
+                    forecast(df, filter_key, 30)
+                else:
+                    forecast(df, filter_key, 90)
         elif sub_option == "Market":
             market_options = ["Rajkot", "Neemuch", "Kalburgi", "Warangal"]
             selected_market = st.selectbox("Select Market for Model Training", market_options)
@@ -987,7 +1400,12 @@ if st.session_state.authenticated:
             if st.button("Forecast"):
                 query_filter = {"Market Name": selected_market}
                 df = fetch_and_process_data(query_filter)
-                forecast(df, filter_key)
+                if sub_timeline == "14 days":
+                    forecast(df, filter_key, 14)
+                elif sub_timeline == "1 month":
+                    forecast(df, filter_key, 30)
+                else:
+                    forecast(df, filter_key, 90)
         
         elif sub_option == "India":
             df = collection_to_dataframe(impExp)
@@ -995,7 +1413,12 @@ if st.session_state.authenticated:
                 if st.button("Forecast"):
                     query_filter = {}
                     df = fetch_and_process_data(query_filter)
-                    forecast(df, "India")
+                    if sub_timeline == "14 days":
+                        forecast(df, "India", 14)
+                    elif if sub_timeline == "1 month":
+                        forecast(df, "India", 30)
+                    else:
+                        forecast(df, "India", 90)
 
     elif view_mode=="Statistics":
         document = collection.find_one()
@@ -1022,18 +1445,15 @@ if st.session_state.authenticated:
         # Convert Reported Date to datetime
         df["Reported Date"] = pd.to_datetime(df["Reported Date"], format="%Y-%m-%d")
     
-        # Get the last reported date
-        last_reported_date = df["Reported Date"].max()
-    
         # Filter data based on the time period
         if time_period == "1 Month":
-            start_date = last_reported_date - pd.DateOffset(months=1)
+            start_date = pd.Timestamp.now() - pd.DateOffset(months=1)
         elif time_period == "6 Months":
-            start_date = last_reported_date - pd.DateOffset(months=6)
+            start_date = pd.Timestamp.now() - pd.DateOffset(months=6)
         elif time_period == "1 Year":
-            start_date = last_reported_date - pd.DateOffset(years=1)
+            start_date = pd.Timestamp.now() - pd.DateOffset(years=1)
         elif time_period == "2 Years":
-            start_date = last_reported_date - pd.DateOffset(years=2)
+            start_date = pd.Timestamp.now() - pd.DateOffset(years=2)
     
         filtered_df = df[df["Reported Date"] >= start_date]
     
@@ -1061,14 +1481,11 @@ if st.session_state.authenticated:
             y_axis_label = "Average Export Price (Rs.)"
         elif plot_option == "Export Quantity":
             grouped_df = (
-                filtered_df.groupby("Reported Date", as_index=False)["QUANTITY_EXPORT"]  # Fix column name
+                filtered_df.groupby("Reported Date", as_index=False)["QUANTITY_IMPORT"]
                 .sum()
-                .rename(columns={"QUANTITY_EXPORT": "Total Export Quantity"})
+                .rename(columns={"QUANTITY_IMPORT": "Total Export Quantity"})
             )
             y_axis_label = "Total Export Quantity (Tonnes)"
-    
-        # Display the last reported date
-        st.write(f"Last reported date for {plot_option}: {last_reported_date.strftime('%Y-%m-%d')}")
     
         # Plot using Plotly
         fig = px.line(
@@ -1079,7 +1496,6 @@ if st.session_state.authenticated:
             labels={"Reported Date": "Date", grouped_df.columns[1]: y_axis_label},
         )
         st.plotly_chart(fig)
-
         
         
 else:
