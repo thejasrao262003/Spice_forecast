@@ -1024,13 +1024,13 @@ if st.session_state.authenticated:
     
         # Filter data based on the time period
         if time_period == "1 Month":
-            start_date = pd.Timestamp.now() - pd.DateOffset(months=1)
+            start_date = last_reported_date - pd.DateOffset(months=1)
         elif time_period == "6 Months":
-            start_date = pd.Timestamp.now() - pd.DateOffset(months=6)
+            start_date = last_reported_date - pd.DateOffset(months=6)
         elif time_period == "1 Year":
-            start_date = pd.Timestamp.now() - pd.DateOffset(years=1)
+            start_date = last_reported_date - pd.DateOffset(years=1)
         elif time_period == "2 Years":
-            start_date = pd.Timestamp.now() - pd.DateOffset(years=2)
+            start_date = last_reported_date - pd.DateOffset(years=2)
     
         filtered_df = df[df["Reported Date"] >= start_date]
     
