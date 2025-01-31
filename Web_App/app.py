@@ -821,7 +821,7 @@ if st.session_state.authenticated:
         st.sidebar.header("Filters")
         selected_period = st.sidebar.selectbox(
             "Select Time Period",
-            ["2 Weeks", "1 Month", "3 Months", "1 Year", "5 Years"],
+            ["2 Weeks", "1 Month", "3 Months", "1 Year", "2 Years", "5 Years"],
             index=1
         )
         period_mapping = {
