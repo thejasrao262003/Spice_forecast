@@ -1022,6 +1022,9 @@ if st.session_state.authenticated:
         # Convert Reported Date to datetime
         df["Reported Date"] = pd.to_datetime(df["Reported Date"], format="%Y-%m-%d")
     
+        # Get the last reported date
+        last_reported_date = df["Reported Date"].max()
+    
         # Filter data based on the time period
         if time_period == "1 Month":
             start_date = last_reported_date - pd.DateOffset(months=1)
@@ -1058,13 +1061,15 @@ if st.session_state.authenticated:
             y_axis_label = "Average Export Price (Rs.)"
         elif plot_option == "Export Quantity":
             grouped_df = (
-                filtered_df.groupby("Reported Date", as_index=False)["QUANTITY_IMPORT"]
+                filtered_df.groupby("Reported Date", as_index=False)["QUANTITY_EXPORT"]  # Fix column name
                 .sum()
-                .rename(columns={"QUANTITY_IMPORT": "Total Export Quantity"})
+                .rename(columns={"QUANTITY_EXPORT": "Total Export Quantity"})
             )
             y_axis_label = "Total Export Quantity (Tonnes)"
-        last_reported_date = filtered_df["Reported Date"].max()
+    
+        # Display the last reported date
         st.write(f"Last reported date for {plot_option}: {last_reported_date.strftime('%Y-%m-%d')}")
+    
         # Plot using Plotly
         fig = px.line(
             grouped_df,
@@ -1074,6 +1079,7 @@ if st.session_state.authenticated:
             labels={"Reported Date": "Date", grouped_df.columns[1]: y_axis_label},
         )
         st.plotly_chart(fig)
+
         
         
 else:
